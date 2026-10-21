@@ -228,17 +228,20 @@ export function createPublishingService({ config, logger, adapters, queue, stora
     }
     const content = {
       text: target.textOverride ?? post.text,
-      media: mediaDocs.map((d) => ({
-        id: String(d._id),
-        kind: d.kind,
-        mimeType: d.mimeType,
-        size: d.size,
-        altText: d.altText,
-        width: d.width ?? null,
-        height: d.height ?? null,
-        blob: () => storage.blob(d.storageKey, d.mimeType),
-        publicUrl: adapter.capabilities.media.requiresPublicUrl ? media.publicUrl(d) : null,
-      })),
+      media: await Promise.all(
+        mediaDocs.map(async (d) => ({
+          id: String(d._id),
+          kind: d.kind,
+          mimeType: d.mimeType,
+          size: d.size,
+          altText: d.altText,
+          width: d.width ?? null,
+          height: d.height ?? null,
+          blob: () => storage.blob(d.storageKey, d.mimeType),
+          // Signed gateway link, minted per attempt so it is fresh when the platform downloads the file.
+          publicUrl: adapter.capabilities.media.requiresPublicUrl ? await media.publicUrl(d) : null,
+        })),
+      ),
     };
 
     // Re-validate at execution time: content, media or account limits may have changed since scheduling.

@@ -151,7 +151,7 @@ export function createMediaService({ config, storage, cipher, audit, logger, set
         mimeType: asset.mimeType,
         expiresAtSeconds: Math.floor(Date.now() / 1000) + ttlSeconds,
       });
-      return ;
+      return `${base}/m/${token}`;
     },
 
     async isPublicDeliveryConfigured() {
