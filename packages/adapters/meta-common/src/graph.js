@@ -62,6 +62,8 @@ export function classifyGraphError({ status, body, headers, mutating = false }) 
     return make(ERROR_CLASS.RATE_LIMITED, { retryAfterMs });
   }
   if (code === 368) return make(ERROR_CLASS.PERMANENT, { code: 'temporarily_blocked' });
+  // Instagram: the container is still being processed. Nothing is public yet, so waiting and retrying is safe.
+  if (code === 9007 || sub === 2207027) return make(ERROR_CLASS.TRANSIENT, { code: 'media_not_ready' });
   if (e.is_transient === true || code === 1 || code === 2 || status >= 500) {
     return make(mutating ? ERROR_CLASS.AMBIGUOUS : ERROR_CLASS.TRANSIENT, { code: code ? String(code) : 'server_error' });
   }
