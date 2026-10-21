@@ -5,6 +5,20 @@
   "type": "module",
   "license": "AGPL-3.0-only",
   "description": "Open-source, self-hosted social media management platform",
-  "engines": { "node": ">=22" },
-  "workspaces": ["apps/*", "packages/*", "packages/adapters/*"]
+  "engines": {
+    "node": ">=22"
+  },
+  "workspaces": [
+    "apps/*",
+    "packages/*",
+    "packages/adapters/*"
+  ],
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "eslint": "10.13.0",
+    "globals": "17.13.0",
+    "mongodb-memory-server": "11.3.0",
+    "supertest": "7.3.1",
+    "vitest": "5.0.5"
+  }
 }
