@@ -1,0 +1,21 @@
+# Development data stores only (MongoDB + Redis on loopback, no authentication, separate volumes).
+#   docker compose -f docker-compose.dev.yml up -d
+# Then run the apps on the host with `npm run dev`. Never use this file for real data on a shared machine.
+name: psm-dev
+
+services:
+  mongo:
+    image: mongo:8
+    restart: unless-stopped
+    ports: ["127.0.0.1:27017:27017"]
+    volumes: [mongo-dev-data:/data/db]
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    ports: ["127.0.0.1:6379:6379"]
+    volumes: [redis-dev-data:/data]
+
+volumes:
+  mongo-dev-data:
+  redis-dev-data:

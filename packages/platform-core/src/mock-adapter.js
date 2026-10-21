@@ -70,7 +70,7 @@ export class MockAdapter extends PlatformAdapter {
     const text = content.text ?? '';
     const attempt = (this.#attempts.get(idempotencyKey) ?? 0) + 1;
     this.#attempts.set(idempotencyKey, attempt);
-    markSending?.();
+    await markSending?.();
 
     if (text.includes('[mock:slow]')) await sleep(3000, signal);
     if (text.includes('[mock:fail-permanent]')) {

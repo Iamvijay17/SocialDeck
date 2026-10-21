@@ -35,13 +35,6 @@ export const passwordSchema = z
   .min(12, 'Password must be at least 12 characters')
   .max(128, 'Password must be at most 128 characters');
 
-export const setupSchema = z.object({
-  setupToken: z.string().min(16).max(256),
-  email: z.email().max(254),
-  password: passwordSchema,
-  displayName: z.string().trim().min(1).max(80).optional(),
-});
-
 export const loginSchema = z.object({
   email: z.email().max(254),
   password: z.string().min(1).max(128),

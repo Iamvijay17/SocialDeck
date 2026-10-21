@@ -1,10 +1,10 @@
 {
-  "name": "open-social-hub",
+  "name": "private-social-manager",
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "license": "AGPL-3.0-only",
-  "description": "Open-source, self-hosted social media management platform",
+  "license": "UNLICENSED",
+  "description": "Private, self-hosted social media manager for one owner (and optionally one trusted friend)",
   "engines": {
     "node": ">=22"
   },
@@ -20,5 +20,29 @@
     "mongodb-memory-server": "11.3.0",
     "supertest": "7.3.1",
     "vitest": "5.0.5"
+  },
+  "scripts": {
+    "setup:env": "node scripts/setup-env.js",
+    "dev": "node scripts/dev.js",
+    "dev:api": "npm run dev -w @osh/api",
+    "dev:worker": "npm run dev -w @osh/worker",
+    "dev:web": "npm run dev -w @osh/web",
+    "dev:mongo": "node scripts/dev-mongo.js",
+    "build": "npm run build -w @osh/web",
+    "start:api": "npm run start -w @osh/api",
+    "start:worker": "npm run start -w @osh/worker",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "eslint .",
+    "create-user": "node scripts/admin.js create-user",
+    "reset-password": "node scripts/admin.js reset-password",
+    "list-users": "node scripts/admin.js list-users",
+    "rotate-key": "node scripts/admin.js rotate-key",
+    "cleanup-media": "node scripts/admin.js cleanup-media",
+    "backup": "node scripts/backup.js",
+    "restore": "node scripts/restore.js",
+    "docker:up": "docker compose up -d --build",
+    "docker:down": "docker compose down",
+    "docker:logs": "docker compose logs -f --tail=100"
   }
 }

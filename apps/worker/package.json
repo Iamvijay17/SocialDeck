@@ -3,5 +3,15 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "license": "AGPL-3.0-only"
+  "license": "UNLICENSED",
+  "dependencies": {
+    "@osh/platform-core": "0.1.0",
+    "@osh/server-core": "0.1.0",
+    "@osh/shared": "0.1.0",
+    "bullmq": "6.4.0"
+  },
+  "scripts": {
+    "start": "node --env-file-if-exists=../../.env src/worker.js",
+    "dev": "node --watch --env-file-if-exists=../../.env src/worker.js"
+  }
 }

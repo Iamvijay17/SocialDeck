@@ -1,1 +1,26 @@
-node_modules
+# dependencies & build output
+node_modules/
+dist/
+build/
+coverage/
+.vite/
+
+# secrets and local state - NEVER commit these
+.env
+.env.*
+!.env.example
+data/
+backups/
+*.pem
+*.key
+
+# logs, editors, OS
+*.log
+npm-debug.log*
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+.claude/
+playwright-report/
+test-results/

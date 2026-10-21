@@ -113,7 +113,7 @@ function guardedLookup(allowPrivate) {
  * @param {string} [opts.userAgent]
  * @param {Function} [opts.fetchImpl] test seam
  */
-export function createSafeFetch({ allowPrivate = false, timeoutMs = 20_000, userAgent = 'OpenSocialHub/0.1', fetchImpl } = {}) {
+export function createSafeFetch({ allowPrivate = false, timeoutMs = 20_000, userAgent = 'PrivateSocialManager/0.1', fetchImpl } = {}) {
   const dispatcher = new Agent({
     connect: { lookup: guardedLookup(allowPrivate), timeout: 10_000 },
     headersTimeout: timeoutMs,

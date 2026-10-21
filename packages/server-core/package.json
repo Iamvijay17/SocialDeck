@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "license": "AGPL-3.0-only",
+  "license": "UNLICENSED",
   "exports": {
     ".": "./src/index.js"
   },
@@ -13,6 +13,14 @@
     "ioredis": "6.0.0",
     "mongoose": "9.11.2",
     "pino": "10.4.0",
-    "zod": "4.6.7"
+    "zod": "4.6.7",
+    "@osh/shared": "0.1.0",
+    "@osh/platform-core": "0.1.0",
+    "@osh/adapter-bluesky": "0.1.0",
+    "@osh/adapter-mastodon": "0.1.0",
+    "@osh/adapter-instagram": "0.1.0",
+    "@osh/adapter-facebook": "0.1.0",
+    "@osh/adapter-threads": "0.1.0",
+    "@osh/adapter-x": "0.1.0"
   }
 }

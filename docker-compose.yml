@@ -1,0 +1,110 @@
+# Private Social Manager - production-style stack.
+#   npm run setup:env      # once: creates .env with fresh secrets
+#   docker compose up -d --build
+# Then open http://127.0.0.1:8080 . Nothing except the web UI is published, and only on loopback.
+#
+# Networks
+#   backend  (internal, no internet)  : mongo, redis, api, worker, web
+#   egress   (normal bridge)          : api, worker  - they must reach Bluesky / Mastodon / etc.
+#   frontend (normal bridge)          : web          - the only service with a published port (127.0.0.1)
+
+name: private-social-manager
+
+x-app-env: &app-env
+  NODE_ENV: production
+  HOST: 0.0.0.0 # inside the container only; no port of the api is published
+  PORT: "4000"
+  PUBLIC_URL: ${PSM_PUBLIC_URL:-http://127.0.0.1:8080}
+  TRUST_PROXY: "1" # nginx in the web container
+  MONGODB_URI: mongodb://root:${MONGO_PASSWORD:?run "npm run setup:env" first}@mongo:27017/private-social-manager?authSource=admin
+  REDIS_URL: redis://:${REDIS_PASSWORD:?run "npm run setup:env" first}@redis:6379
+  MEDIA_DIR: /data/media
+
+services:
+  mongo:
+    image: mongo:8
+    restart: unless-stopped
+    init: true
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD:?run "npm run setup:env" first}
+    volumes:
+      - mongo-data:/data/db
+    networks: [backend]
+    healthcheck:
+      test: ["CMD-SHELL", "mongosh --quiet -u root -p \"$$MONGO_INITDB_ROOT_PASSWORD\" --authenticationDatabase admin --eval \"db.adminCommand('ping').ok\" | grep -q 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    init: true
+    # AOF persistence so delayed (scheduled) jobs survive restarts. MongoDB can rebuild the queue if Redis is ever lost.
+    command: ["redis-server", "--appendonly", "yes", "--save", "60", "1", "--requirepass", "${REDIS_PASSWORD:?run \"npm run setup:env\" first}"]
+    environment:
+      REDISCLI_AUTH: ${REDIS_PASSWORD}
+    volumes:
+      - redis-data:/data
+    networks: [backend]
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli ping | grep -q PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    restart: unless-stopped
+    init: true
+    env_file: [.env]
+    environment: *app-env
+    volumes:
+      - ./data/media:/data/media
+    depends_on:
+      mongo: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    networks: [backend, egress]
+    stop_grace_period: 20s
+
+  worker:
+    build:
+      context: .
+      dockerfile: apps/worker/Dockerfile
+    restart: unless-stopped
+    init: true
+    env_file: [.env]
+    environment: *app-env
+    volumes:
+      - ./data/media:/data/media
+    depends_on:
+      mongo: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    networks: [backend, egress]
+    # Lets in-flight publish jobs finish on `docker compose stop`; anything interrupted is handled by startup recovery.
+    stop_grace_period: 70s
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${PSM_PORT:-8080}:8080"
+    depends_on:
+      api: { condition: service_healthy }
+    networks: [frontend, backend]
+
+networks:
+  backend:
+    internal: true
+  egress: {}
+  frontend: {}
+
+volumes:
+  mongo-data:
+  redis-data:

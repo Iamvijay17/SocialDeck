@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "license": "AGPL-3.0-only",
+  "license": "UNLICENSED",
   "dependencies": {
     "cookie-parser": "1.4.7",
     "cors": "2.8.6",
@@ -11,6 +11,14 @@
     "express-rate-limit": "8.7.1",
     "helmet": "8.3.0",
     "multer": "2.4.0",
-    "pino-http": "11.0.0"
+    "pino-http": "11.0.0",
+    "@osh/shared": "0.1.0",
+    "@osh/validation": "0.1.0",
+    "@osh/server-core": "0.1.0",
+    "@osh/platform-core": "0.1.0"
+  },
+  "scripts": {
+    "start": "node --env-file-if-exists=../../.env src/server.js",
+    "dev": "node --watch --env-file-if-exists=../../.env src/server.js"
   }
 }
