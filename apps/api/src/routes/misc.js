@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { analyticsQuerySchema, paginationSchema, preferencesSchema } from '@osh/validation';
-import { pingDb } from '@osh/server-core';
+import { User, pingDb } from '@osh/server-core';
 import { idParams, validate } from '../middleware/validate.js';
 import { APP_VERSION } from '../version.js';
 
@@ -29,6 +29,16 @@ export function publicRoutes({ ctx }) {
     } catch (err) {
       next(err);
     }
+  });
+  return r;
+}
+
+/** Owner-only: the users that exist besides the owner (trusted friend access). */
+export function userRoutes({ ctx }) {
+  const r = Router();
+  r.get('/', async (_req, res) => {
+    const users = await User.find({ isOwner: false }).sort({ createdAt: 1 });
+    res.json({ enabled: ctx.config.friendAccessEnabled, items: users.map((u) => ctx.services.auth.publicUser(u)) });
   });
   return r;
 }

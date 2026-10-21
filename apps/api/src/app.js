@@ -3,14 +3,14 @@ import cors from 'cors';
 import express from 'express';
 import helmet from 'helmet';
 import { pinoHttp } from 'pino-http';
-import { loadSession, requireAuth, requireCsrf } from './middleware/auth.js';
+import { loadSession, requireAuth, requireCsrf, requireOwner } from './middleware/auth.js';
 import { errorHandler, notFoundHandler } from './middleware/errors.js';
 import { createRateLimiters } from './middleware/rate-limit.js';
 import { requestId } from './middleware/request-id.js';
 import { accountRoutes } from './routes/accounts.js';
 import { authRoutes } from './routes/auth.js';
 import { mediaRoutes, publicMediaRoutes } from './routes/media.js';
-import { analyticsRoutes, dashboardRoutes, platformRoutes, publicRoutes, settingsRoutes } from './routes/misc.js';
+import { analyticsRoutes, dashboardRoutes, platformRoutes, publicRoutes, settingsRoutes, userRoutes } from './routes/misc.js';
 import { postRoutes } from './routes/posts.js';
 import { publishingRoutes } from './routes/publishing.js';
 
@@ -79,6 +79,7 @@ export function createApp(ctx, { rateLimits } = {}) {
   app.use('/api/media', ...authed, mediaRoutes({ ctx }));
   app.use('/api/dashboard', ...authed, dashboardRoutes({ ctx }));
   app.use('/api/settings', ...authed, settingsRoutes({ ctx }));
+  app.use('/api/users', ...authed, requireOwner, userRoutes({ ctx }));
   app.use('/api/analytics', ...authed, analyticsRoutes({ ctx, limiters }));
 
   app.use(notFoundHandler());

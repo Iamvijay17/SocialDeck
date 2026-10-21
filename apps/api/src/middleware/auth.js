@@ -14,6 +14,13 @@ export function loadSession({ services }) {
   };
 }
 
+/** Owner-only actions: connecting/disconnecting accounts, granting access, system information. */
+export function requireOwner(req, _res, next) {
+  if (!req.auth) throw unauthorized();
+  if (!req.auth.user.isOwner) throw forbidden('Only the owner can do this.');
+  next();
+}
+
 export function requireAuth(req, _res, next) {
   if (!req.auth) throw unauthorized();
   next();

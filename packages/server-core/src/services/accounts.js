@@ -1,9 +1,20 @@
 import { ACCOUNT_STATUS, AppError, TARGET_STATUS, badRequest, conflict, notFound } from '@osh/shared';
 import { PlatformError } from '@osh/platform-core';
-import { PostTarget, SocialAccount } from '../models/index.js';
+import { PostTarget, SocialAccount, User } from '../models/index.js';
 import { callbackUrl } from '../adapters.js';
 
 const CRED_AAD = 'social-account-credentials';
+
+const accessibleFilter = (userId) => ({ $or: [{ ownerId: userId }, { 'grants.userId': userId }] });
+
+/** Shape an account for a viewer: owners see who it is shared with; everyone else only sees that it is shared. */
+function present(account, viewerId) {
+  const json = account.toJSON();
+  const isOwner = String(account.ownerId) === String(viewerId);
+  json.shared = !isOwner;
+  json.grants = isOwner ? (account.grants ?? []).map((g) => ({ userId: String(g.userId), permissions: g.permissions })) : undefined;
+  return json;
+}
 
 export function createAccountService({ config, logger, cipher, adapters, audit, publishing }) {
   function adapterFor(platform) {
@@ -24,14 +35,39 @@ export function createAccountService({ config, logger, cipher, adapters, audit, 
   }
 
   const service = {
-    async list(ownerId) {
-      return SocialAccount.find({ ownerId }).sort({ platform: 1, displayName: 1 });
+    /** Accounts the user owns plus accounts the owner explicitly granted to them. */
+    async list(userId) {
+      const accounts = await SocialAccount.find(accessibleFilter(userId)).sort({ platform: 1, displayName: 1 });
+      return accounts.map((a) => present(a, userId));
     },
 
-    async get(ownerId, id) {
-      const account = await SocialAccount.findOne({ _id: id, ownerId });
+    async get(userId, id) {
+      const account = await SocialAccount.findOne({ _id: id, ...accessibleFilter(userId) });
       if (!account) throw notFound('Account not found.');
-      return account;
+      return present(account, userId);
+    },
+
+    /**
+     * Friend access (owner only): allow or stop another user publishing to an account.
+     * Revoking cancels that user's queued/scheduled posts for the account.
+     */
+    async setGrant(userRef, accountId, on, { actorId, requestId } = {}) {
+      if (!config.friendAccessEnabled) throw conflict('Friend access is disabled (ENABLE_FRIEND_ACCESS=false).');
+      const user = /^[a-f0-9]{24}$/i.test(String(userRef)) ? await User.findById(userRef) : await User.findOne({ email: String(userRef ?? '').toLowerCase() });
+      if (!user) throw notFound('User not found.');
+      if (user.isOwner) throw badRequest('The owner already has access to every account.');
+      const account = await SocialAccount.findById(accountId);
+      if (!account || (actorId && String(account.ownerId) !== String(actorId))) throw notFound('Account not found.');
+      if (on) {
+        if (account.status === ACCOUNT_STATUS.REVOKED) throw conflict('This account has been disconnected.');
+        await SocialAccount.updateOne({ _id: account._id, 'grants.userId': { $ne: user._id } }, { $push: { grants: { userId: user._id, permissions: ['publish'] } } });
+      } else {
+        await SocialAccount.updateOne({ _id: account._id }, { $pull: { grants: { userId: user._id } } });
+        const pending = await PostTarget.find({ accountId: account._id, ownerId: user._id, status: { $in: [TARGET_STATUS.QUEUED, TARGET_STATUS.SCHEDULED] } });
+        for (const t of pending) await publishing.cancelTarget(t, { reason: 'Access to this account was revoked.' }).catch(() => {});
+      }
+      await audit.record({ actorId, action: on ? 'account.grant' : 'account.revoke_grant', resourceType: 'account', resourceId: account._id, metadata: { userId: String(user._id) }, requestId });
+      return { accountId: String(account._id), userId: String(user._id), granted: on };
     },
 
     /** Load an account including its decrypted credentials. Server-side use only. */

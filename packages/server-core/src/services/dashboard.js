@@ -7,7 +7,7 @@ export function createDashboardService({ queue, accounts, adapters }) {
     async summary(ownerId) {
       const now = new Date();
       const [accountDocs, published, scheduled, failedTargets, recent, upcoming, jobCounts] = await Promise.all([
-        SocialAccount.find({ ownerId, status: { $ne: ACCOUNT_STATUS.REVOKED } }).sort({ platform: 1 }),
+        SocialAccount.find({ $or: [{ ownerId }, { 'grants.userId': ownerId }], status: { $ne: ACCOUNT_STATUS.REVOKED } }).sort({ platform: 1 }),
         Post.countDocuments({ ownerId, status: { $in: [POST_STATUS.PUBLISHED, POST_STATUS.PARTIALLY_PUBLISHED] } }),
         Post.countDocuments({ ownerId, status: POST_STATUS.SCHEDULED }),
         PostTarget.countDocuments({ ownerId, status: { $in: [TARGET_STATUS.FAILED, TARGET_STATUS.NEEDS_REAUTHORIZATION] } }),

@@ -23,7 +23,7 @@ export function createPostService({ adapters, media, audit, publishing }) {
   }
 
   async function loadAccounts(ownerId, accountIds) {
-    const accounts = await SocialAccount.find({ _id: { $in: accountIds }, ownerId });
+    const accounts = await SocialAccount.find({ _id: { $in: accountIds }, $or: [{ ownerId }, { 'grants.userId': ownerId }] });
     if (accounts.length !== new Set(accountIds.map(String)).size) throw notFound('One or more selected accounts were not found.');
     for (const a of accounts) {
       if (a.status === ACCOUNT_STATUS.REVOKED) throw conflict(`${a.displayName} has been disconnected.`);

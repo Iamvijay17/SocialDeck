@@ -1,10 +1,11 @@
 import { Router } from 'express';
 import { PLATFORM_IDS, badRequest } from '@osh/shared';
-import { connectQuerySchema, z } from '@osh/validation';
-import { requireAuth, requireCsrf } from '../middleware/auth.js';
+import { connectQuerySchema, objectId, z } from '@osh/validation';
+import { requireAuth, requireCsrf, requireOwner } from '../middleware/auth.js';
 import { idParams, validate } from '../middleware/validate.js';
 
 const platformParams = z.object({ platform: z.enum(PLATFORM_IDS) });
+const grantParams = z.object({ id: objectId, userId: objectId });
 
 export function accountRoutes({ ctx }) {
   const { services, config } = ctx;
@@ -15,7 +16,7 @@ export function accountRoutes({ ctx }) {
   r.get('/:platform/callback', validate({ params: platformParams }), async (req, res) => {
     const { platform } = req.valid.params;
     const back = (params) => res.redirect(`${config.publicUrl}/accounts?${new URLSearchParams(params).toString()}`);
-    if (!req.auth) return back({ error: 'session_expired', message: 'Your session expired. Sign in and connect the account again.' });
+    if (!req.auth?.user.isOwner) return back({ error: 'session_expired', message: 'Your session expired. Sign in and connect the account again.' });
     try {
       const account = await services.accounts.completeConnect(req.auth.user._id, platform, new URLSearchParams(req.query), { requestId: req.id });
       return back({ connected: platform, account: String(account._id) });
@@ -32,7 +33,7 @@ export function accountRoutes({ ctx }) {
   });
 
   // Starts the official authorization flow; returns the URL the browser should be sent to.
-  r.get('/:platform/connect', validate({ params: platformParams, query: connectQuerySchema }), async (req, res) => {
+  r.get('/:platform/connect', requireOwner, validate({ params: platformParams, query: connectQuerySchema }), async (req, res) => {
     const { platform } = req.valid.params;
     const result = await services.accounts.beginConnect(req.auth.user._id, platform, req.valid.query);
     if (!result?.authorizationUrl) throw badRequest('The platform did not provide an authorization URL.');
@@ -43,11 +44,19 @@ export function accountRoutes({ ctx }) {
     res.json({ account: await services.accounts.get(req.auth.user._id, req.valid.params.id) });
   });
 
-  r.post('/:id/verify', validate({ params: idParams }), async (req, res) => {
+  r.post('/:id/verify', requireOwner, validate({ params: idParams }), async (req, res) => {
     res.json({ account: await services.accounts.verify(req.auth.user._id, req.valid.params.id, { requestId: req.id }) });
   });
 
-  r.delete('/:id', validate({ params: idParams }), async (req, res) => {
+  r.put('/:id/grants/:userId', requireOwner, validate({ params: grantParams }), async (req, res) => {
+    res.json(await services.accounts.setGrant(req.valid.params.userId, req.valid.params.id, true, { actorId: req.auth.user._id, requestId: req.id }));
+  });
+
+  r.delete('/:id/grants/:userId', requireOwner, validate({ params: grantParams }), async (req, res) => {
+    res.json(await services.accounts.setGrant(req.valid.params.userId, req.valid.params.id, false, { actorId: req.auth.user._id, requestId: req.id }));
+  });
+
+  r.delete('/:id', requireOwner, validate({ params: idParams }), async (req, res) => {
     res.json(await services.accounts.disconnect(req.auth.user._id, req.valid.params.id, { requestId: req.id }));
   });
 

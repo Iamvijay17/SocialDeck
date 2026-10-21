@@ -19,6 +19,14 @@ const socialAccountSchema = new Schema(
     statusReason: { type: String, maxlength: 500 },
     lastVerifiedAt: Date,
     connectedAt: { type: Date, default: Date.now },
+    /**
+     * Optional trusted-friend access. A grant lets another user publish to this account; it never exposes
+     * credentials, and only the owner can create or remove grants.
+     */
+    grants: {
+      type: [{ _id: false, userId: { type: ObjectId, ref: 'User', required: true }, permissions: { type: [String], default: ['publish'] }, grantedAt: { type: Date, default: Date.now } }],
+      default: [],
+    },
   },
   {
     ...baseOptions,
@@ -35,5 +43,6 @@ const socialAccountSchema = new Schema(
 
 socialAccountSchema.index({ ownerId: 1, platform: 1, externalId: 1 }, { unique: true });
 socialAccountSchema.index({ ownerId: 1, status: 1 });
+socialAccountSchema.index({ 'grants.userId': 1 });
 
 export const SocialAccount = defineModel('SocialAccount', socialAccountSchema);
