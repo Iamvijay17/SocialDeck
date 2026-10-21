@@ -21,6 +21,10 @@ import { ERROR_CLASS } from '@osh/shared';
  * @property {string} [instance]
  *
  * @typedef {object} AuthorizationResult
+ * Adapters whose login yields several accounts (Meta: one per Page / Instagram account) return
+ * `{ accounts: AuthorizationResult[] }`; each entry may set `platform` when it differs from the adapter's own.
+ * @property {string} [platform]
+ * @property {AuthorizationResult[]} [accounts]
  * @property {AccountIdentity} identity
  * @property {object} credentials  adapter-defined, JSON-serialisable. Encrypted at rest by the caller.
  * @property {string[]} scopes
@@ -68,6 +72,9 @@ export const DEFAULT_CAPABILITIES = Object.freeze({
   },
   scheduling: { native: false, minLeadSeconds: 0 },
   idempotentPublish: false,
+  /** 'public' = redirect to PUBLIC_URL; 'oauth' = OAUTH_REDIRECT_BASE_URL (platforms that demand https or localhost). */
+  redirectBase: 'public',
+  /** 'none' | 'automatic' | 'reauthorize' (user must sign in again before expiry) */
   tokenRefresh: 'none',
   analytics: { postMetrics: [] },
   notes: [],
@@ -115,9 +122,48 @@ export class PlatformAdapter {
     return DEFAULT_CAPABILITIES;
   }
 
-  /** Whether publishing is enabled for this adapter. Stubs return false. */
+  /**
+   * Whether the operator has supplied what this integration needs (developer app credentials, etc.).
+   * Adapters that need configuration override this; `missing` lists the environment variables to set.
+   * @returns {{configured: boolean, missing: string[]}}
+   */
+  get configuration() {
+    return { configured: true, missing: [] };
+  }
+
+  /** Publishing is only offered when the adapter is both implemented and configured. */
   get enabled() {
-    return this.capabilities.implemented;
+    return this.capabilities.implemented && this.configuration.configured;
+  }
+
+  /**
+   * Platform whose callback route receives the OAuth redirect. Instagram shares Facebook's Meta login, so it
+   * returns 'facebook' and the redirect URI registered in the Meta app is the same for both.
+   */
+  get authCallbackPlatform() {
+    return this.id;
+  }
+
+  /**
+   * Identify who started an OAuth flow from the provider callback alone (via the single-use `state`).
+   * Lets the callback work when the provider redirects to a different origin than the dashboard (e.g.
+   * http://localhost vs http://127.0.0.1), where the session cookie is not sent. Return null if unknown.
+   * @param {URLSearchParams} query
+   * @returns {Promise<string|null>}
+   */
+  // eslint-disable-next-line no-unused-vars
+  async ownerFromCallback(query) {
+    return null;
+  }
+
+  /**
+   * Refresh long-lived credentials before they expire (only for platforms that support it).
+   * @param {{credentials: object, account: object}} ctx
+   * @returns {Promise<{credentials: object, expiresAt: Date|null}>}
+   */
+  // eslint-disable-next-line no-unused-vars
+  async refreshCredentials(ctx) {
+    throw notImplemented(this.id, 'credential refresh');
   }
 
   /**

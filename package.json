@@ -43,6 +43,8 @@
     "restore": "node scripts/restore.js",
     "docker:up": "docker compose up -d --build",
     "docker:down": "docker compose down",
-    "docker:logs": "docker compose logs -f --tail=100"
+    "docker:logs": "docker compose logs -f --tail=100",
+    "dev:gateway": "npm run dev -w @osh/media-gateway",
+    "tunnel:url": "node scripts/tunnel-url.js"
   }
 }

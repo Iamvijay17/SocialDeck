@@ -7,3 +7,4 @@ export * from './media-asset.js';
 export * from './publish-job.js';
 export * from './audit-log.js';
 export * from './key-value.js';
+export * from './app-setting.js';

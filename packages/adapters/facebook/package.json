@@ -8,6 +8,8 @@
     ".": "./src/index.js"
   },
   "dependencies": {
-    "@osh/platform-core": "0.1.0"
+    "@osh/shared": "0.1.0",
+    "@osh/platform-core": "0.1.0",
+    "@osh/adapter-meta-common": "0.1.0"
   }
 }

@@ -10,12 +10,14 @@ const int = (def, min = 0, max = Number.MAX_SAFE_INTEGER) =>
 
 const schema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
-  APP_NAME: z.string().min(1).max(60).default('Private Social Manager'),
+  APP_NAME: z.string().min(1).max(60).default('SocialDeck'),
 
   HOST: z.string().default('127.0.0.1'),
   PORT: int(4000, 1, 65535),
   PUBLIC_URL: z.url().default('http://127.0.0.1:5173'),
   ALLOWED_ORIGINS: z.string().default(''),
+  /** Base URL used for OAuth redirects of platforms that require https or localhost (Meta, Threads, LinkedIn). */
+  OAUTH_REDIRECT_BASE_URL: z.string().default(''),
   TRUST_PROXY: z.string().default('false'),
   COOKIE_SECURE: z.enum(['auto', 'true', 'false']).default('auto'),
 
@@ -36,7 +38,17 @@ const schema = z.object({
   MAX_IMAGE_MB: int(10, 1),
   MAX_VIDEO_MB: int(100, 1),
   PUBLIC_MEDIA_BASE_URL: z.string().default(''),
-  PUBLIC_MEDIA_URL_TTL_SECONDS: int(900, 60),
+  PUBLIC_MEDIA_URL_TTL_SECONDS: int(1800, 60),
+  MEDIA_SIGNING_KEY: z.string().default(''),
+
+  META_APP_ID: z.string().default(''),
+  META_APP_SECRET: z.string().default(''),
+  META_GRAPH_VERSION: z.string().regex(/^vd+.d+$/).default('v26.0'),
+  THREADS_APP_ID: z.string().default(''),
+  THREADS_APP_SECRET: z.string().default(''),
+  LINKEDIN_CLIENT_ID: z.string().default(''),
+  LINKEDIN_CLIENT_SECRET: z.string().default(''),
+  LINKEDIN_API_VERSION: z.string().regex(/^d{6}$/).default('202610'),
 
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
 
@@ -81,6 +93,15 @@ export function loadConfig(env = process.env, { cwd = process.cwd() } = {}) {
     problems.push('PUBLIC_URL must use https:// in production unless it is a loopback address.');
   }
   if (!isValidTimezone(e.DEFAULT_TIMEZONE)) problems.push(`DEFAULT_TIMEZONE "${e.DEFAULT_TIMEZONE}" is not a valid IANA timezone.`);
+  if (e.OAUTH_REDIRECT_BASE_URL) {
+    try {
+      const u = new URL(e.OAUTH_REDIRECT_BASE_URL);
+      if (u.protocol !== 'https:' && u.hostname !== 'localhost') problems.push('OAUTH_REDIRECT_BASE_URL must be https:// or http://localhost (the only plain-http origin Meta accepts, in development mode).');
+    } catch {
+      problems.push('OAUTH_REDIRECT_BASE_URL is not a valid URL.');
+    }
+  }
+  if (e.MEDIA_SIGNING_KEY && decodeOptionalKey(e.MEDIA_SIGNING_KEY) === null) problems.push('MEDIA_SIGNING_KEY must be 32 bytes (64 hex characters).');
   if (e.PUBLIC_MEDIA_BASE_URL && !e.PUBLIC_MEDIA_BASE_URL.startsWith('https://')) {
     problems.push('PUBLIC_MEDIA_BASE_URL must be an https:// URL.');
   }
@@ -96,6 +117,11 @@ export function loadConfig(env = process.env, { cwd = process.cwd() } = {}) {
     host: e.HOST,
     port: e.PORT,
     publicUrl: publicUrl.origin,
+    oauthRedirectBase: e.OAUTH_REDIRECT_BASE_URL ? new URL(e.OAUTH_REDIRECT_BASE_URL).origin : publicUrl.origin,
+    mediaSigningKey: e.MEDIA_SIGNING_KEY ? decodeOptionalKey(e.MEDIA_SIGNING_KEY) : null,
+    meta: { appId: e.META_APP_ID, appSecret: e.META_APP_SECRET, graphVersion: e.META_GRAPH_VERSION },
+    threads: { appId: e.THREADS_APP_ID, appSecret: e.THREADS_APP_SECRET },
+    linkedin: { clientId: e.LINKEDIN_CLIENT_ID, clientSecret: e.LINKEDIN_CLIENT_SECRET, apiVersion: e.LINKEDIN_API_VERSION },
     allowedOrigins: [publicUrl.origin, ...e.ALLOWED_ORIGINS.split(',').map((s) => s.trim()).filter(Boolean)],
     trustProxy,
     cookieSecure,
@@ -134,6 +160,11 @@ function decodeKey(value) {
     throw new Error('Invalid configuration:\n  - ENCRYPTION_KEY must decode to exactly 32 bytes (64 hex characters or base64). Generate one with `npm run setup:env`.');
   }
   return buf;
+}
+
+function decodeOptionalKey(value) {
+  const buf = /^[0-9a-f]{64}$/i.test(value) ? Buffer.from(value, 'hex') : Buffer.from(value, 'base64');
+  return buf.length === 32 ? buf : null;
 }
 
 function isLoopback(host) {

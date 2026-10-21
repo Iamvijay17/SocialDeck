@@ -5,6 +5,7 @@
   "type": "module",
   "license": "UNLICENSED",
   "exports": {
-    ".": "./src/index.js"
+    ".": "./src/index.js",
+    "./media-token": "./src/media-token.js"
   }
 }

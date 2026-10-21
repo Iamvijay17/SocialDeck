@@ -21,6 +21,8 @@
     "@osh/adapter-instagram": "0.1.0",
     "@osh/adapter-facebook": "0.1.0",
     "@osh/adapter-threads": "0.1.0",
-    "@osh/adapter-x": "0.1.0"
+    "@osh/adapter-x": "0.1.0",
+    "@osh/adapter-linkedin": "0.1.0",
+    "@osh/adapter-meta-common": "0.1.0"
   }
 }

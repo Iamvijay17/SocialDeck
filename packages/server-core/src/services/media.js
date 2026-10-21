@@ -4,12 +4,13 @@ import fsp from 'node:fs/promises';
 import { ALLOWED_MEDIA_TYPES, AppError, conflict, notFound } from '@osh/shared';
 import { MediaAsset, Post } from '../models/index.js';
 import { detectMedia, readImageSize } from '../media/sniff.js';
-import { hmacHex, safeEqual } from '../crypto.js';
+import { signMediaToken } from '@osh/shared/media-token';
 
 const HEAD_BYTES = 512 * 1024;
 
-export function createMediaService({ config, storage, cipher, audit, logger }) {
-  const signingKey = cipher.deriveKey('public-media-url');
+export function createMediaService({ config, storage, cipher, audit, logger, settings }) {
+  // The gateway verifies with the same key; set MEDIA_SIGNING_KEY so it never needs the master ENCRYPTION_KEY.
+  const signingKey = config.mediaSigningKey ?? cipher.deriveKey('public-media-url');
 
   async function sha256File(file) {
     const h = crypto.createHash('sha256');
@@ -20,8 +21,6 @@ export function createMediaService({ config, storage, cipher, audit, logger }) {
   async function discard(file) {
     await fsp.rm(file, { force: true }).catch(() => {});
   }
-
-  const sign = (id, exp) => hmacHex(signingKey, `${id}.${exp}`);
 
   return {
     /**
@@ -139,21 +138,24 @@ export function createMediaService({ config, storage, cipher, audit, logger }) {
       });
     },
 
-    /** Short-lived signed URL for platforms that must fetch media over public HTTPS. Null when not configured. */
-    publicUrl(asset, ttlSeconds = config.media.publicUrlTtlSeconds) {
-      if (!config.media.publicBaseUrl) return null;
-      const exp = Math.floor(Date.now() / 1000) + ttlSeconds;
-      return `${config.media.publicBaseUrl}/api/public-media/${asset.id ?? asset._id}?exp=${exp}&sig=${sign(String(asset._id), exp)}`;
+    /**
+     * Short-lived signed URL served by the media gateway (never the dashboard) for platforms that must download media
+     * over public HTTPS. Null when no public media address is configured.
+     */
+    async publicUrl(asset, ttlSeconds = config.media.publicUrlTtlSeconds) {
+      const base = await settings.publicMediaBaseUrl();
+      if (!base) return null;
+      const token = signMediaToken({
+        key: signingKey,
+        storageKey: asset.storageKey,
+        mimeType: asset.mimeType,
+        expiresAtSeconds: Math.floor(Date.now() / 1000) + ttlSeconds,
+      });
+      return ;
     },
 
-    verifyPublicSignature(id, exp, sig) {
-      const e = Number(exp);
-      if (!Number.isFinite(e) || e < Date.now() / 1000) return false;
-      return typeof sig === 'string' && safeEqual(sig, sign(String(id), e));
-    },
-
-    async getForPublicDelivery(id) {
-      return MediaAsset.findById(id);
+    async isPublicDeliveryConfigured() {
+      return Boolean(await settings.publicMediaBaseUrl());
     },
 
     /**
