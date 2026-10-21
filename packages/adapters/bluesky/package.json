@@ -1,0 +1,14 @@
+{
+  "name": "@osh/adapter-bluesky",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "license": "AGPL-3.0-only",
+  "exports": {
+    ".": "./src/index.js"
+  },
+  "dependencies": {
+    "@atproto/api": "0.29.1",
+    "@atproto/oauth-client-node": "0.5.11"
+  }
+}

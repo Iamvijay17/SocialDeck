@@ -1,0 +1,10 @@
+{
+  "name": "open-social-hub",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "license": "AGPL-3.0-only",
+  "description": "Open-source, self-hosted social media management platform",
+  "engines": { "node": ">=22" },
+  "workspaces": ["apps/*", "packages/*", "packages/adapters/*"]
+}
