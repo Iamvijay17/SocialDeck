@@ -7,7 +7,7 @@ import { PageHeader } from '@/components/AppShell';
 import { StatusBadge } from '@/components/status';
 import { Badge, Button, Card, CardContent, EmptyState, ErrorNotice, Field, Input, Skeleton } from '@/components/ui/primitives';
 import { ConfirmDialog, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { useTimezone } from '@/hooks/auth';
+import { useAuth, useTimezone } from '@/hooks/auth';
 import { useAccounts, usePlatforms } from '@/hooks/queries';
 import { api, qs } from '@/lib/api';
 import { PlatformIcon, platformLabel } from '@/lib/platforms';
@@ -22,6 +22,8 @@ const MATURITY = {
 
 export function AccountsPage() {
   const tz = useTimezone();
+  const { user } = useAuth();
+  const isOwner = user.role === 'owner';
   const qc = useQueryClient();
   const platforms = usePlatforms();
   const accounts = useAccounts();
@@ -66,15 +68,15 @@ export function AccountsPage() {
     <>
       <PageHeader
         title="Social accounts"
-        description="Connect accounts through each platform's official authorization. Passwords are never collected, and tokens are encrypted at rest."
-        actions={<Button onClick={() => setConnectFor('choose')}><Plus /> Connect account</Button>}
+        description={isOwner ? "Connect accounts through each platform's official authorization. Passwords are never collected, and tokens are encrypted at rest." : 'Accounts the owner has shared with you. You can publish to them; credentials are never visible to you.'}
+        actions={isOwner && <Button onClick={() => setConnectFor('choose')}><Plus /> Connect account</Button>}
       />
 
       {accounts.error && <ErrorNotice error={accounts.error} onRetry={() => accounts.refetch()} />}
       {accounts.isLoading ? (
         <div className="grid gap-3 sm:grid-cols-2">{[0, 1].map((i) => <Skeleton key={i} className="h-36" />)}</div>
       ) : list.length === 0 ? (
-        <EmptyState icon={Share2} title="No accounts connected" description="Connect a Bluesky or Mastodon account to start publishing." action={<Button onClick={() => setConnectFor('choose')}><Plus /> Connect account</Button>} />
+        <EmptyState icon={Share2} title="No accounts connected" description={isOwner ? 'Connect a Bluesky or Mastodon account to start publishing.' : 'Ask the owner to share an account with you.'} action={isOwner && <Button onClick={() => setConnectFor('choose')}><Plus /> Connect account</Button>} />
       ) : (
         <ul className="grid gap-3 sm:grid-cols-2">
           {list.map((a) => (
@@ -87,6 +89,7 @@ export function AccountsPage() {
                       <p className="truncate font-medium">{a.displayName}</p>
                       <p className="truncate text-xs text-muted-foreground">{a.handle ?? platformLabel(a.platform)}</p>
                     </div>
+                    {a.shared && <Badge tone="primary">Shared with you</Badge>}
                     <StatusBadge status={a.status} />
                   </div>
                   <dl className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
@@ -96,11 +99,11 @@ export function AccountsPage() {
                     <dt className="text-muted-foreground">Permissions</dt><dd className="break-words">{a.scopes?.length ? a.scopes.join(', ') : '—'}</dd>
                   </dl>
                   {a.statusReason && a.status !== 'active' && <p className="rounded-md bg-amber-500/10 px-2.5 py-2 text-xs text-amber-300">{a.statusReason}</p>}
-                  <div className="flex flex-wrap gap-2">
+                  {isOwner && <div className="flex flex-wrap gap-2">
                     <Button size="sm" variant="outline" onClick={() => verify.mutate(a.id)} loading={verify.isPending && verify.variables === a.id}><ShieldCheck /> Check connection</Button>
                     {a.status !== 'active' && <Button size="sm" onClick={() => setConnectFor(a.platform)}><RefreshCw /> Reconnect</Button>}
                     <Button size="sm" variant="ghost" onClick={() => setToDisconnect(a)}><Unplug /> Disconnect</Button>
-                  </div>
+                  </div>}
                 </CardContent>
               </Card>
             </li>
@@ -108,7 +111,7 @@ export function AccountsPage() {
         </ul>
       )}
 
-      <section className="mt-10" aria-labelledby="platforms-h">
+      {isOwner && <section className="mt-10" aria-labelledby="platforms-h">
         <h2 id="platforms-h" className="mb-3 text-sm font-semibold">Supported platforms</h2>
         <ul className="grid gap-3 md:grid-cols-2">
           {(platforms.data ?? []).map((p) => (
@@ -129,7 +132,7 @@ export function AccountsPage() {
             </li>
           ))}
         </ul>
-      </section>
+      </section>}
 
       <ConnectDialog target={connectFor} onClose={() => setConnectFor(null)} platforms={platforms.data ?? []} onPick={setConnectFor} byId={byId} />
 

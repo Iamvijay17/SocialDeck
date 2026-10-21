@@ -5,7 +5,7 @@ const userSchema = new Schema(
     email: { type: String, required: true, lowercase: true, trim: true, maxlength: 254 },
     displayName: { type: String, trim: true, maxlength: 80 },
     passwordHash: { type: String, required: true, select: false },
-    role: { type: String, enum: ['owner', 'admin', 'member'], default: 'member' },
+    role: { type: String, enum: ['owner', 'friend', 'member'], default: 'member' },
     /** True for the single installation owner. A partial unique index makes "claiming" a fresh install atomic. */
     isOwner: { type: Boolean, default: false },
     preferences: {

@@ -7,7 +7,7 @@ function getSegmenter() {
 /** Length in extended grapheme clusters (what Bluesky counts against its 300 limit). */
 export function graphemeLength(text) {
   let n = 0;
-  for (const _ of getSegmenter().segment(text ?? '')) n++; // eslint-disable-line no-unused-vars
+  for (const _ of getSegmenter().segment(text ?? '')) n++;
   return n;
 }
 

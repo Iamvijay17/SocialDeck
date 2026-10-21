@@ -190,5 +190,6 @@ export function createMediaService({ config, storage, cipher, audit, logger }) {
 function sanitizeName(name) {
   if (!name) return undefined;
   // Display-only; never used for storage paths.
+  // eslint-disable-next-line no-control-regex
   return String(name).replace(/[\u0000-\u001f\u007f/\\]/g, '_').slice(0, 255);
 }

@@ -3,7 +3,7 @@ import { createCipher } from './crypto.js';
 import { connectDb, disconnectDb } from './db.js';
 import { createLogger } from './logger.js';
 import { createMediaStorage } from './media/storage.js';
-import { createBullQueue, createMemoryQueue, createRedisConnection } from './queue.js';
+import { createBullQueue, createRedisConnection } from './queue.js';
 import { createAccountService } from './services/accounts.js';
 import { createAuditService } from './services/audit.js';
 import { createAuthService } from './services/auth.js';
@@ -56,7 +56,7 @@ export async function createContext(config, { logger = createLogger({ level: con
   const accounts = createAccountService({ config, logger, cipher, adapters, audit, publishing });
   ref.accounts = accounts;
   const posts = createPostService({ adapters, media, audit, publishing });
-  const dashboard = createDashboardService({ queue, accounts, adapters });
+  const dashboard = createDashboardService({ queue });
   const analytics = createAnalyticsService({ adapters, accounts });
 
   async function close() {

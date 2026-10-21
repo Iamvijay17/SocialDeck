@@ -54,9 +54,8 @@ export function createPublishingService({ config, logger, adapters, queue, stora
   async function enqueueTarget(target, { runAt = nowDate() } = {}) {
     const _id = new mongoose.Types.ObjectId();
     const queueJobId = `${_id}.1`;
-    let job;
     try {
-      job = await PublishJob.create({
+      await PublishJob.create({
         _id,
         targetId: target._id,
         postId: target.postId,

@@ -2,7 +2,7 @@ import { ACCOUNT_STATUS, POST_STATUS, PUBLISH_JOB_STATUS, TARGET_STATUS, notFoun
 import { PlatformError } from '@osh/platform-core';
 import { Post, PostTarget, PublishJob, SocialAccount } from '../models/index.js';
 
-export function createDashboardService({ queue, accounts, adapters }) {
+export function createDashboardService({ queue }) {
   return {
     async summary(ownerId) {
       const now = new Date();
@@ -68,10 +68,6 @@ export function createDashboardService({ queue, accounts, adapters }) {
         jobs: Object.fromEntries(Object.values(PUBLISH_JOB_STATUS).map((s) => [s, jobCounts.find((c) => c._id === s)?.count ?? 0])),
         system: { queueConnected: queueOk, workerOnline },
       };
-    },
-
-    async accountsMissing() {
-      return accounts;
     },
   };
 }

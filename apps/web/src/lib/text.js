@@ -6,7 +6,7 @@ let segmenter;
 const graphemes = (t) => {
   segmenter ??= new Intl.Segmenter(undefined, { granularity: 'grapheme' });
   let n = 0;
-  for (const _ of segmenter.segment(t)) n++; // eslint-disable-line no-unused-vars
+  for (const _ of segmenter.segment(t)) n++;
   return n;
 };
 

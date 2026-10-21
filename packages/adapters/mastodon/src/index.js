@@ -161,7 +161,7 @@ export class MastodonAdapter extends PlatformAdapter {
     return app;
   }
 
-  async completeAuthorization({ ownerId, redirectUri, query, signal }) {
+  async completeAuthorization({ ownerId, query, signal }) {
     const error = query.get('error');
     if (error) {
       throw new PlatformError(error === 'access_denied' ? 'Authorization was declined on the server.' : `The server returned an error: ${query.get('error_description') ?? error}`, {

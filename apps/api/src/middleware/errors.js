@@ -11,7 +11,7 @@ export function notFoundHandler() {
 }
 
 export function errorHandler({ logger, isProduction }) {
-  // eslint-disable-next-line no-unused-vars
+
   return (err, req, res, _next) => {
     if (res.headersSent) return res.end();
 
