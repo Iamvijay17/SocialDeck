@@ -1,4 +1,4 @@
-import { Cloud, Camera, FlaskConical, MessageCircle, AtSign, ThumbsUp, X as XIcon } from 'lucide-react';
+import { AtSign, Briefcase, Camera, Cloud, FlaskConical, MessageCircle, ThumbsUp, X as XIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export const PLATFORM_STYLE = {
@@ -7,6 +7,7 @@ export const PLATFORM_STYLE = {
   instagram: { label: 'Instagram', color: '#e1306c', icon: Camera },
   facebook: { label: 'Facebook Pages', color: '#1877f2', icon: ThumbsUp },
   threads: { label: 'Threads', color: '#a1a1aa', icon: MessageCircle },
+  linkedin: { label: 'LinkedIn', color: '#0a66c2', icon: Briefcase },
   x: { label: 'X', color: '#e4e4e7', icon: XIcon },
   mock: { label: 'Mock (dev only)', color: '#f59e0b', icon: FlaskConical },
 };

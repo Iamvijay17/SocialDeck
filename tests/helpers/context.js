@@ -66,7 +66,7 @@ export async function seedOwnerWithMockAccounts(ctx, n = 2) {
   for (let i = 0; i < n; i++) {
     const { authorizationUrl } = await services.accounts.beginConnect(user.id, 'mock', { handle: `demo${i}` });
     const query = new URL(authorizationUrl).searchParams;
-    accounts.push(await services.accounts.completeConnect(user.id, 'mock', query));
+    accounts.push(...(await services.accounts.completeConnect(user.id, 'mock', query)));
   }
   return { user, accounts };
 }

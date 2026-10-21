@@ -275,7 +275,8 @@ export function validateAgainstCapabilities(caps, content, measure) {
   if (kinds.size > 1 && !caps.media.mixedTypes) {
     issues.push({ code: 'mixed_media', severity: 'error', message: 'Images and videos cannot be combined in one post on this platform.' });
   }
-  if (kinds.has('video') && media.filter((m) => m.kind === 'video').length > 1 && caps.media.maxVideos !== undefined && caps.media.maxVideos < 2) {
+  const maxVideos = caps.media.video?.maxVideos ?? caps.media.maxVideos;
+  if (kinds.has('video') && media.filter((m) => m.kind === 'video').length > 1 && maxVideos !== undefined && maxVideos < 2) {
     issues.push({ code: 'too_many_videos', severity: 'error', message: 'Only one video per post is supported.' });
   }
   for (const m of media) {

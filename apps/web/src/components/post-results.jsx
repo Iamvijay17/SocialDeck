@@ -5,6 +5,7 @@ import { AlertTriangle, ExternalLink, RefreshCw, XCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/primitives';
 import { ConfirmDialog } from '@/components/ui/dialog';
+import { ManualButton } from '@/components/manual-publish';
 import { StatusBadge } from '@/components/status';
 import { PlatformIcon, platformLabel } from '@/lib/platforms';
 import { api } from '@/lib/api';
@@ -25,6 +26,7 @@ function useInvalidatePosts() {
  * every target shows its own status, attempts, link and error.
  */
 export function PostResults({ post }) {
+  const captionFor = (t) => t.textOverride ?? post.text;
   const tz = useTimezone();
   const invalidate = useInvalidatePosts();
   const [confirmRetry, setConfirmRetry] = useState(null);
@@ -95,6 +97,9 @@ export function PostResults({ post }) {
                   <Button size="sm" variant="outline" onClick={() => (ambiguous ? setConfirmRetry(t) : retry.mutate({ jobId: t.job.id, acknowledgeDuplicateRisk: false }))} loading={retry.isPending && retry.variables?.jobId === t.job.id}>
                     <RefreshCw /> Retry
                   </Button>
+                )}
+                {['failed', 'needs_reauthorization'].includes(t.status) && (
+                  <ManualButton platform={t.platform} text={captionFor(t)} variant="ghost">Post manually</ManualButton>
                 )}
                 {canCancel && (
                   <Button size="sm" variant="ghost" onClick={() => cancel.mutate(t.job.id)} loading={cancel.isPending && cancel.variables === t.job.id}>Cancel</Button>

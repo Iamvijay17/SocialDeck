@@ -15,6 +15,8 @@ This is a small private tool, not a hardened multi-user service. It has not been
   with Zod on every endpoint, consistent error envelope without stack traces in production.
 * **Social tokens** are encrypted at rest with AES-256-GCM (`ENCRYPTION_KEY`); they are never returned by the API or
   written to logs (log redaction + tests that assert it). The friend role never receives credentials.
+* **OAuth callbacks** are completed from a random, single-use, owner-bound `state` (encrypted at rest, 10-minute lifetime); replayed, expired or foreign states are rejected. Only the owner can start a flow.
+* **Public media gateway:** a separate service that serves only signed, expiring links to individual files, with no database, no API and read-only file access (see [media-hosting.md](media-hosting.md)). Never point a tunnel at the dashboard or API.
 * **SSRF protection:** server names you type (Mastodon) are checked at connect time against private, loopback,
   link-local and metadata addresses, redirects are not followed.
 * **Uploads:** type decided from file contents (not name or MIME), size limits, server-generated names, path

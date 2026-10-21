@@ -200,6 +200,13 @@ describe('mastodon publishing', () => {
 
 describe('mastodon validation and misc', () => {
   const acct = { instance: 'm.example', id: 'a1' };
+  it('allows only one video per post', async () => {
+    const t = make({});
+    const v = { kind: 'video', mimeType: 'video/mp4', size: 1 };
+    const issues = await t.adapter.validateContent({ text: 'x', media: [v, v] }, { account: acct });
+    expect(issues.map((i) => i.code)).toContain('too_many_videos');
+  });
+
   it('uses limits advertised by the instance', async () => {
     const t = make({
       'GET /api/v2/instance': () => json({ ...INSTANCE, configuration: { ...INSTANCE.configuration, statuses: { max_characters: 100, max_media_attachments: 1, characters_reserved_per_url: 23 } } }),

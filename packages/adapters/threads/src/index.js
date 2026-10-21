@@ -148,10 +148,6 @@ export class ThreadsAdapter extends PlatformAdapter {
   async validateContent(content) {
     const issues = validateAgainstCapabilities(CAPS, content, threadsLength);
     const media = content.media ?? [];
-    if (media.length === 1 && media[0].kind === 'video' && (content.text ?? '').trim() === '') {
-      // allowed: a video-only post
-    }
-    if (media.length === 1 && media.length < 2 && false) return issues;
     if (media.length > 0 && this.deps.publicMedia && !(await this.deps.publicMedia.isConfigured())) {
       issues.push({
         code: 'public_media_not_configured',

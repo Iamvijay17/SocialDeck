@@ -16,6 +16,8 @@ const password = randomBytes(15).toString('base64url');
 const set = (text, key, value) => text.replace(new RegExp(`^${key}=.*$`, 'm'), `${key}=${value}`);
 let env = fs.readFileSync(path.join(root, '.env.example'), 'utf8');
 env = set(env, 'ENCRYPTION_KEY', randomBytes(32).toString('hex'));
+env = set(env, 'MEDIA_SIGNING_KEY', randomBytes(32).toString('hex'));
+env = set(env, 'OAUTH_REDIRECT_BASE_URL', 'http://localhost:5173');
 env = set(env, 'MONGO_PASSWORD', randomBytes(18).toString('hex'));
 env = set(env, 'REDIS_PASSWORD', randomBytes(18).toString('hex'));
 env = set(env, 'ENABLE_MOCK_PLATFORM', process.argv.includes('--demo') ? 'true' : 'false');

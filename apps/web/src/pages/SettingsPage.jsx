@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Globe, HardDrive, LogOut, ScrollText, Server, Users } from 'lucide-react';
+import { Globe, HardDrive, Link2, LogOut, ScrollText, Server, Users } from 'lucide-react';
 import { toast } from 'sonner';
 import { PageHeader } from '@/components/AppShell';
-import { Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle, ErrorNotice, Field, Select, Skeleton, Switch } from '@/components/ui/primitives';
+import { Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle, ErrorNotice, Field, Input, Select, Skeleton, Switch } from '@/components/ui/primitives';
 import { useAuth } from '@/hooks/auth';
 import { useAccounts } from '@/hooks/queries';
 import { api } from '@/lib/api';
@@ -93,6 +93,8 @@ export function SettingsPage() {
           </Card>
         )}
 
+        {isOwner && <PublicMedia />}
+
         {isOwner && <FriendAccess />}
 
         <Card>
@@ -170,6 +172,60 @@ function FriendAccess() {
             })}
           </div>
         ))}
+      </CardContent>
+    </Card>
+  );
+}
+
+function PublicMedia() {
+  const qc = useQueryClient();
+  const current = useQuery({ queryKey: ['public-media'], queryFn: () => api('/settings/public-media') });
+  const [value, setValue] = useState('');
+  const [result, setResult] = useState(null);
+  useEffect(() => setValue(current.data?.baseUrl ?? ''), [current.data]);
+
+  const save = useMutation({
+    mutationFn: (baseUrl) => api('/settings/public-media', { method: 'PUT', body: { baseUrl } }),
+    onSuccess: () => {
+      toast.success('Public media address saved');
+      setResult(null);
+      qc.invalidateQueries({ queryKey: ['public-media'] });
+      qc.invalidateQueries({ queryKey: ['settings'] });
+    },
+    onError: (err) => toast.error(err.message),
+  });
+  const test = useMutation({
+    mutationFn: () => api('/settings/public-media/test', { method: 'POST', body: value ? { baseUrl: value } : {} }),
+    onSuccess: setResult,
+    onError: (err) => toast.error(err.message),
+  });
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2"><Link2 className="size-4" /> Public media address</CardTitle>
+        <CardDescription>
+          Instagram, and Threads posts with images or video, download your media from a public https address. Point a free tunnel at the media
+          gateway (port 4100) and paste its address here. Only signed, expiring links to individual files are ever served; the dashboard and API are not exposed.
+          Bluesky, Mastodon, Facebook Pages, LinkedIn and text-only Threads posts do not need this.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <Field label="Gateway address" htmlFor="media-url" hint={current.data?.fromEnvironment ? 'Currently taken from PUBLIC_MEDIA_BASE_URL in .env.' : 'Example: https://random-words.trycloudflare.com'}>
+          <Input id="media-url" value={value} onChange={(e) => setValue(e.target.value)} placeholder="https://…" autoComplete="off" />
+        </Field>
+        <div className="flex flex-wrap gap-2">
+          <Button onClick={() => save.mutate(value.trim() || null)} loading={save.isPending} disabled={(current.data?.baseUrl ?? '') === value.trim()}>Save</Button>
+          <Button variant="outline" onClick={() => test.mutate()} loading={test.isPending} disabled={!value.trim() && !current.data?.baseUrl}>Test connection</Button>
+          {current.data?.baseUrl && <Button variant="ghost" onClick={() => { setValue(''); save.mutate(null); }}>Clear</Button>}
+        </div>
+        {result && (
+          <p role="status" className={`rounded-md px-2.5 py-2 text-xs ${result.reachable ? 'bg-green-500/10 text-green-300' : 'bg-amber-500/10 text-amber-300'}`}>{result.message}</p>
+        )}
+        <p className="text-xs text-muted-foreground">
+          Quick start: <code className="rounded bg-secondary px-1">docker compose --profile tunnel up -d</code> then <code className="rounded bg-secondary px-1">npm run tunnel:url</code>.
+          The free quick-tunnel address changes whenever the tunnel restarts. Details: <code className="rounded bg-secondary px-1">docs/media-hosting.md</code>.
+        </p>
       </CardContent>
     </Card>
   );

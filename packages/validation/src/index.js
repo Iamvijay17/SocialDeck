@@ -149,3 +149,6 @@ export const preferencesSchema = z
 export const analyticsQuerySchema = z.object({
   days: z.coerce.number().int().min(1).max(365).default(30),
 });
+
+/** Public https address of the media gateway; null clears it. */
+export const publicMediaSchema = z.object({ baseUrl: z.string().trim().max(300).nullable() });

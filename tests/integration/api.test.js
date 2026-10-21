@@ -146,10 +146,16 @@ describe('accounts', () => {
     expect(res.headers.location).toMatch(/error=/);
   });
 
-  it('refuses to connect unimplemented platforms with a clear message', async () => {
-    const res = await agent.get('/api/accounts/instagram/connect');
-    expect(res.status).toBe(501);
-    expect(res.body.error.code).toBe('integration_unavailable');
+  it('refuses to connect unavailable or unconfigured platforms with a clear message', async () => {
+    const paid = await agent.get('/api/accounts/x/connect');
+    expect(paid.status).toBe(501);
+    expect(paid.body.error.code).toBe('integration_unavailable');
+    const unconfigured = await agent.get('/api/accounts/instagram/connect');
+    expect(unconfigured.status).toBe(409);
+    expect(unconfigured.body.error.code).toBe('platform_not_configured');
+    expect(unconfigured.body.error.message).toMatch(/META_APP_ID/);
+    expect((await agent.get('/api/accounts/threads/connect')).body.error.details.missing).toEqual(['THREADS_APP_ID', 'THREADS_APP_SECRET']);
+    expect((await agent.get('/api/accounts/linkedin/connect')).status).toBe(409);
   });
 
   it('lists platform capabilities, marking unimplemented ones', async () => {
@@ -157,8 +163,10 @@ describe('accounts', () => {
     const byId = Object.fromEntries(res.body.items.map((p) => [p.id, p]));
     expect(byId.bluesky.enabled).toBe(true);
     expect(byId.mastodon.capabilities.idempotentPublish).toBe(true);
-    expect(byId.instagram.enabled).toBe(false);
-    expect(byId.x.enabled).toBe(false);
+    expect(byId.instagram).toMatchObject({ implemented: true, configured: false, enabled: false, missingConfig: ['META_APP_ID', 'META_APP_SECRET'] });
+    expect(byId.facebook.configured).toBe(false);
+    expect(byId.x).toMatchObject({ implemented: false, enabled: false, maturity: 'paid' });
+    expect(byId.linkedin.capabilities.requiredScopes).toContain('w_member_social');
     expect(byId.mock.maturity).toBe('mock');
   });
 

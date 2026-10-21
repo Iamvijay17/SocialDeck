@@ -1,6 +1,7 @@
 import { Router } from 'express';
-import { analyticsQuerySchema, paginationSchema, preferencesSchema } from '@osh/validation';
+import { analyticsQuerySchema, paginationSchema, preferencesSchema, publicMediaSchema } from '@osh/validation';
 import { User, pingDb } from '@osh/server-core';
+import { requireOwner } from '../middleware/auth.js';
 import { idParams, validate } from '../middleware/validate.js';
 import { APP_VERSION } from '../version.js';
 
@@ -70,9 +71,21 @@ export function settingsRoutes({ ctx }) {
       user: services.auth.publicUser(req.auth.user),
       defaults: { timezone: config.defaultTimezone },
       publishing: { maxAttempts: config.publish.maxAttempts },
-      media: { ...media, publicDeliveryConfigured: Boolean(config.media.publicBaseUrl) },
+      media: { ...media, publicDeliveryConfigured: await services.media.isPublicDeliveryConfigured() },
       system: { queueConnected, workerOnline, mockPlatformEnabled: config.enableMockPlatform, publicUrl: config.publicUrl },
     });
+  });
+
+  // Public address of the media gateway (needed only for Instagram / Threads posts with media). Owner only.
+  r.get('/public-media', requireOwner, async (_req, res) => {
+    const baseUrl = await services.settings.publicMediaBaseUrl();
+    res.json({ baseUrl, fromEnvironment: Boolean(baseUrl) && baseUrl === config.media.publicBaseUrl });
+  });
+  r.put('/public-media', requireOwner, validate({ body: publicMediaSchema }), async (req, res) => {
+    res.json(await services.settings.setPublicMediaBaseUrl(req.valid.body.baseUrl, { actorId: req.auth.user._id, requestId: req.id }));
+  });
+  r.post('/public-media/test', requireOwner, validate({ body: publicMediaSchema.partial() }), async (req, res) => {
+    res.json(await services.settings.testPublicMediaBaseUrl(req.valid.body.baseUrl));
   });
 
   r.patch('/preferences', validate({ body: preferencesSchema }), async (req, res) => {

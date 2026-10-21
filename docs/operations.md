@@ -31,6 +31,10 @@ reconnected. Anything that was scheduled is picked up by the worker's recovery o
 
 ## Upgrade
 
+New settings appear in `.env.example`. Existing installs must copy the new variables into their `.env` (`MEDIA_SIGNING_KEY`,
+`OAUTH_REDIRECT_BASE_URL`, `PSM_OAUTH_REDIRECT_BASE_URL`, and the platform credentials you want). Nothing breaks without them: the
+new platforms simply show *Needs setup*.
+
 ```powershell
 git pull                  # or copy the new version over
 npm install

@@ -20,10 +20,10 @@ return `{ items, page, limit, total }`.
 | `GET /auth/status` | app name | public |
 | `POST /auth/login` · `POST /auth/logout` · `GET /auth/me` | session | login is rate limited; no registration endpoint exists |
 | `PATCH /auth/preferences` · `PATCH /settings/preferences` | timezone | IANA name |
-| `GET /platforms` | adapters, capabilities, maturity, notes | |
+| `GET /platforms` | adapters, capabilities, `implemented` / `configured` / `missingConfig` / `enabled`, maturity, notes | `409 platform_not_configured` when connecting an unconfigured platform; `501` for disabled ones |
 | `GET /accounts` · `GET /accounts/:id` | accounts you own or are granted | never contains credentials |
 | `GET /accounts/:platform/connect?instance=&handle=` | returns `{ authorizationUrl }` | owner only |
-| `GET /accounts/:platform/callback` | OAuth return; redirects to `/accounts?connected=…` | owner session required |
+| `GET /accounts/:platform/callback` | OAuth return; redirects to `/accounts?connected=…&count=n` | identified by the one-time `state` (works without the cookie); Instagram returns through `facebook` |
 | `POST /accounts/:id/verify` · `DELETE /accounts/:id` | check / disconnect (revokes upstream, cancels pending posts) | owner only |
 | `PUT/DELETE /accounts/:id/grants/:userId` | friend access | owner only, needs `ENABLE_FRIEND_ACCESS` |
 | `GET /users` | friend users | owner only |
@@ -40,5 +40,5 @@ return `{ items, page, limit, total }`.
 | `GET /dashboard/summary` | counts, activity, upcoming, integrations, worker state | |
 | `GET /analytics/overview` · `GET /analytics/targets/:id/metrics` | real publishing stats; live platform metrics when the API offers them | `available:false` + reason otherwise |
 | `GET /settings` · `GET /settings/audit-log` | system info, audit trail | |
-| `GET /public-media/:id?exp=&sig=` | signed public delivery | disabled unless `PUBLIC_MEDIA_BASE_URL` is set |
+| `GET/PUT /settings/public-media` · `POST /settings/public-media/test` | public address of the media gateway (needed for Instagram/Threads media) | owner only; https and non-private addresses only |
 | `GET /oauth/bluesky/client-metadata.json` | Bluesky OAuth client metadata | only used for non-loopback installs |

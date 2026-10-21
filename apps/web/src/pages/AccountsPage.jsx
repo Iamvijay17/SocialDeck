@@ -14,11 +14,27 @@ import { PlatformIcon, platformLabel } from '@/lib/platforms';
 import { formatInZone } from '@/lib/time';
 
 const MATURITY = {
-  implemented: { label: 'Implemented – verify with your account', tone: 'info' },
+  implemented: { label: 'Implemented – not yet verified with a real account', tone: 'info' },
   mock: { label: 'Development only', tone: 'warning' },
   planned: { label: 'Not available yet', tone: 'neutral' },
-  evaluating: { label: 'Not enabled', tone: 'neutral' },
+  paid: { label: 'Disabled (paid API)', tone: 'neutral' },
 };
+
+/** The state a user needs to know about before trying to connect. */
+function platformState(p) {
+  if (p.maturity === 'paid') return { label: 'Disabled (paid API)', tone: 'neutral' };
+  if (!p.implemented) return { label: 'Not available yet', tone: 'neutral' };
+  if (!p.configured) return { label: 'Needs setup', tone: 'warning' };
+  return { label: 'Ready to connect', tone: 'success' };
+}
+
+const DAY = 86_400_000;
+function ExpiryNote({ expiresAt }) {
+  if (!expiresAt) return null;
+  const days = Math.ceil((new Date(expiresAt).getTime() - Date.now()) / DAY);
+  if (days > 14) return null;
+  return <Badge tone={days <= 3 ? 'danger' : 'warning'}>{days <= 0 ? 'Expired' : `Expires in ${days} day${days === 1 ? '' : 's'}`}</Badge>;
+}
 
 export function AccountsPage() {
   const tz = useTimezone();
@@ -36,7 +52,10 @@ export function AccountsPage() {
     const connected = params.get('connected');
     const error = params.get('error');
     if (!connected && !error) return;
-    if (connected) toast.success(`${platformLabel(connected)} account connected`);
+    if (connected) {
+      const n = Number(params.get('count') ?? 1);
+      toast.success(`${connected.split(',').map(platformLabel).join(' + ')}: ${n} account${n === 1 ? '' : 's'} connected`);
+    }
     if (error) toast.error(params.get('message') || 'The account could not be connected.');
     qc.invalidateQueries({ queryKey: ['accounts'] });
     setParams({}, { replace: true });
@@ -90,12 +109,13 @@ export function AccountsPage() {
                       <p className="truncate text-xs text-muted-foreground">{a.handle ?? platformLabel(a.platform)}</p>
                     </div>
                     {a.shared && <Badge tone="primary">Shared with you</Badge>}
+                    <ExpiryNote expiresAt={a.tokenExpiresAt} />
                     <StatusBadge status={a.status} />
                   </div>
                   <dl className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
                     <dt className="text-muted-foreground">Connected</dt><dd>{formatInZone(a.connectedAt, tz, { dateStyle: 'medium' })}</dd>
                     <dt className="text-muted-foreground">Last checked</dt><dd>{a.lastVerifiedAt ? formatInZone(a.lastVerifiedAt, tz) : 'never'}</dd>
-                    <dt className="text-muted-foreground">Token expiry</dt><dd>{a.tokenExpiresAt ? formatInZone(a.tokenExpiresAt, tz) : 'Not reported by this platform'}</dd>
+                    <dt className="text-muted-foreground">Token expiry</dt><dd>{a.tokenExpiresAt ? formatInZone(a.tokenExpiresAt, tz) : 'Does not expire by time'}</dd>
                     <dt className="text-muted-foreground">Permissions</dt><dd className="break-words">{a.scopes?.length ? a.scopes.join(', ') : '—'}</dd>
                   </dl>
                   {a.statusReason && a.status !== 'active' && <p className="rounded-md bg-amber-500/10 px-2.5 py-2 text-xs text-amber-300">{a.statusReason}</p>}
@@ -119,8 +139,20 @@ export function AccountsPage() {
               <div className="flex items-center gap-3">
                 <PlatformIcon platform={p.id} />
                 <p className="font-medium">{p.label}</p>
-                <Badge tone={MATURITY[p.maturity]?.tone} className="ml-auto">{MATURITY[p.maturity]?.label ?? p.maturity}</Badge>
+                <Badge tone={platformState(p).tone} className="ml-auto">{platformState(p).label}</Badge>
               </div>
+              {p.implemented && !p.configured && (
+                <p className="mt-2 rounded-md bg-amber-500/10 px-2.5 py-2 text-xs text-amber-300">
+                  Not set up yet. Add{' '}
+                  {p.missingConfig.map((m, i) => (
+                    <span key={m}>{i > 0 && ' and '}<code className="font-mono">{m}</code></span>
+                  ))}{' '}
+                  to <code className="font-mono">.env</code> and restart. Exact steps: <code className="font-mono">docs/platforms.md</code>.
+                </p>
+              )}
+              {p.implemented && p.configured && p.maturity === 'implemented' && (
+                <p className="mt-2 text-xs text-muted-foreground">{MATURITY.implemented.label}. Publish a test post after connecting.</p>
+              )}
               {p.capabilities.requiredScopes?.length > 0 && (
                 <p className="mt-2 text-xs text-muted-foreground"><span className="font-medium text-foreground">Permissions requested:</span> {p.capabilities.requiredScopes.join(', ')}</p>
               )}
@@ -190,7 +222,7 @@ function ConnectDialog({ target, onClose, platforms, onPick, byId }) {
                   <button type="button" disabled={!p.enabled} onClick={() => onPick(p.id)} className="flex w-full items-center gap-3 rounded-lg border border-border p-3 text-left transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50">
                     <PlatformIcon platform={p.id} />
                     <span className="flex-1 text-sm font-medium">{p.label}</span>
-                    {!p.enabled && <Badge>Not available yet</Badge>}
+                    {!p.enabled && <Badge tone={platformState(p).tone}>{platformState(p).label}</Badge>}
                   </button>
                 </li>
               ))}
@@ -200,7 +232,8 @@ function ConnectDialog({ target, onClose, platforms, onPick, byId }) {
           <form onSubmit={(e) => { e.preventDefault(); start(); }} className="grid gap-4">
             <DialogHeader>
               <DialogTitle>Connect {platform.label}</DialogTitle>
-              <DialogDescription>You will approve access on {platform.label}. Requested permissions: {platform.capabilities.requiredScopes.join(', ') || 'none'}.</DialogDescription>
+              <DialogDescription>You will approve access on {platform.label}
+                {platform.id === 'facebook' || platform.id === 'instagram' ? ' — on Facebook you choose which Pages to share' : ''}. Requested permissions: {platform.capabilities.requiredScopes.join(', ') || 'none'}.</DialogDescription>
             </DialogHeader>
             {input && (
               <Field label={input.label} htmlFor="connect-input" hint={platform.id === 'bluesky' ? 'Leave empty to sign in at bsky.social.' : undefined} error={error}>

@@ -5,6 +5,7 @@ import { CalendarClock, ImagePlus, Lock, PenLine, Save, Send, Share2, X } from '
 import { toast } from 'sonner';
 import { PageHeader } from '@/components/AppShell';
 import { MediaPicker, MediaThumb } from '@/components/media';
+import { ManualPublishCard } from '@/components/manual-publish';
 import { PostPreview } from '@/components/post-preview';
 import { PostResults } from '@/components/post-results';
 import { StatusBadge } from '@/components/status';
@@ -74,6 +75,17 @@ export function ComposerPage() {
   const platformById = useMemo(() => Object.fromEntries((platforms.data ?? []).map((p) => [p.id, p])), [platforms.data]);
   const usableAccounts = (accounts.data ?? []).filter((a) => a.status !== 'revoked' && platformById[a.platform]?.enabled);
   const selectedAccounts = usableAccounts.filter((a) => selected[a.id]);
+
+  // Platforms with no working connected account get a manual fallback (copy caption + open the platform).
+  const connectedPlatforms = new Set(usableAccounts.filter((a) => a.status === 'active').map((a) => a.platform));
+  const manualPlatforms = ['instagram', 'facebook', 'threads', 'linkedin', 'x', 'bluesky', 'mastodon'].filter((p) => !connectedPlatforms.has(p));
+  const manualReasons = Object.fromEntries(
+    manualPlatforms.map((p) => {
+      const info = platformById[p];
+      const reason = info?.maturity === 'paid' ? "X's posting API is paid, so SocialDeck does not connect to it." : info && !info.configured ? 'Not set up yet – see Social Accounts.' : 'No account connected.';
+      return [p, reason];
+    }),
+  );
 
   const targets = selectedAccounts.map((a) => ({ accountId: a.id, text: selected[a.id].custom }));
   const mediaIds = media.map((m) => m.id);
@@ -301,6 +313,10 @@ export function ComposerPage() {
             </CardContent>
           </Card>
         </div>
+      </div>
+
+      <div className="mt-6">
+        <ManualPublishCard platforms={manualPlatforms} text={text} reasons={manualReasons} />
       </div>
 
       {showResults && (

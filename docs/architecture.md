@@ -57,6 +57,13 @@ lost. The engine therefore classifies every failure:
 * Before the creating request is sent the job records `phase = sending` in MongoDB. If a worker dies in `preparing`
   (uploading media, nothing public yet) the job is restarted safely; if it dies in `sending`, see the table above.
 
+## Token lifetimes
+
+Threads tokens (60 days) are refreshed by the worker every 6 hours when they are within 14 days of expiry; accounts whose token can no
+longer be refreshed are flagged *Reconnect needed* while there is still time. LinkedIn tokens (60 days) cannot be refreshed by
+ordinary apps, so they show their expiry date and warn before it. Meta Page tokens do not expire by time but fail with an auth error
+if revoked, which flags the account the same way.
+
 ## Components
 
 * **API** — validation (Zod), sessions, CSRF, rate limits, REST endpoints. Never calls platforms while publishing.

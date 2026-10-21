@@ -94,6 +94,7 @@ export function DashboardPage() {
                 <div key={i.id} className="flex items-center gap-2">
                   <PlatformIcon platform={i.platform} size="sm" />
                   <span className="min-w-0 flex-1 truncate text-sm">{i.displayName}</span>
+                  {i.tokenExpiresAt && new Date(i.tokenExpiresAt).getTime() - Date.now() < 14 * 86_400_000 && <Badge tone="warning">Expires {relativeTime(i.tokenExpiresAt)}</Badge>}
                   <StatusBadge status={i.status} />
                 </div>
               ))}

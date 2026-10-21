@@ -9,12 +9,14 @@ const touch = async () => fs.writeFileSync(HEARTBEAT_FILE, String(Date.now()));
 const SWEEP_INTERVAL_MS = 30_000;
 const HEARTBEAT_INTERVAL_MS = 10_000;
 const CLEANUP_INTERVAL_MS = 6 * 60 * 60_000;
+const TOKEN_REFRESH_INTERVAL_MS = 6 * 60 * 60_000;
 
 /**
  * Periodic housekeeping. Scheduled publishing itself relies on delayed queue messages (persisted in Redis and
  * rebuilt from MongoDB on demand); this sweep is the safety net that repairs any divergence, plus:
  *  - a heartbeat so the dashboard can show whether a worker is alive,
- *  - orphaned media cleanup.
+ *  - orphaned media cleanup,
+ *  - refreshing long-lived platform tokens before they expire.
  * @returns {() => void} stop function
  */
 export function startScheduler(ctx) {
@@ -32,6 +34,9 @@ export function startScheduler(ctx) {
   touch().catch(() => {});
   every(SWEEP_INTERVAL_MS, () => runRecovery(ctx, 'periodic'));
   every(CLEANUP_INTERVAL_MS, () => ctx.services.media.cleanupOrphans());
+  // Threads tokens last 60 days; refresh any within 14 days of expiry (and flag accounts that can no longer be refreshed).
+  every(TOKEN_REFRESH_INTERVAL_MS, () => ctx.services.accounts.refreshExpiring());
+  ctx.services.accounts.refreshExpiring().catch((err) => ctx.logger.error({ err }, 'startup token refresh failed'));
   ctx.queue.setWorkerHeartbeat(30).catch(() => {});
 
   return () => timers.forEach(clearInterval);

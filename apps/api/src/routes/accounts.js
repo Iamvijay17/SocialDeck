@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { User } from '@osh/server-core';
 import { PLATFORM_IDS, badRequest } from '@osh/shared';
 import { connectQuerySchema, objectId, z } from '@osh/validation';
 import { requireAuth, requireCsrf, requireOwner } from '../middleware/auth.js';
@@ -11,15 +12,24 @@ export function accountRoutes({ ctx }) {
   const { services, config } = ctx;
   const r = Router();
 
-  // The provider redirects the browser here. The session cookie (SameSite=Lax) accompanies top-level navigations.
-  // Registered before the auth gate for :id routes so that failures redirect back to the UI instead of returning JSON.
+  // The provider redirects the browser here. Who started the flow is read from the single-use `state` that only the
+  // owner could have created, NOT from the session cookie: Meta, Threads and LinkedIn may redirect to a different
+  // origin (http://localhost) than the dashboard (http://127.0.0.1), and cookies do not cross origins.
+  // Bluesky's flow has no such state lookup and still needs the cookie.
   r.get('/:platform/callback', validate({ params: platformParams }), async (req, res) => {
     const { platform } = req.valid.params;
     const back = (params) => res.redirect(`${config.publicUrl}/accounts?${new URLSearchParams(params).toString()}`);
-    if (!req.auth?.user.isOwner) return back({ error: 'session_expired', message: 'Your session expired. Sign in and connect the account again.' });
+    const query = new URLSearchParams(req.query);
     try {
-      const account = await services.accounts.completeConnect(req.auth.user._id, platform, new URLSearchParams(req.query), { requestId: req.id });
-      return back({ connected: platform, account: String(account._id) });
+      const fromState = await services.accounts.ownerFromCallback(platform, query);
+      const fromSession = req.auth ? String(req.auth.user._id) : null;
+      if (fromState && fromSession && fromState !== fromSession) return back({ error: 'wrong_user', message: 'This sign-in was started by a different user.' });
+      const ownerId = fromState ?? fromSession;
+      const owner = ownerId ? await User.findById(ownerId) : null;
+      if (!owner?.isOwner) return back({ error: 'session_expired', message: 'Your session expired. Sign in and connect the account again.' });
+      const accounts = await services.accounts.completeConnect(owner._id, platform, query, { requestId: req.id });
+      const platforms = [...new Set(accounts.map((a) => a.platform))];
+      return back({ connected: platforms.join(','), count: String(accounts.length) });
     } catch (err) {
       ctx.logger.warn({ platform, code: err.code, requestId: req.id }, 'account connection failed');
       return back({ error: err.code ?? 'connect_failed', message: err.status && err.status < 500 ? err.message : 'The account could not be connected.' });

@@ -1,3 +1,4 @@
+import { createSafeFetch } from '@osh/platform-core';
 import { createAdapterRegistry } from './adapters.js';
 import { createCipher } from './crypto.js';
 import { connectDb, disconnectDb } from './db.js';
@@ -11,6 +12,7 @@ import { createAnalyticsService, createDashboardService } from './services/dashb
 import { createMediaService } from './services/media.js';
 import { createPostService } from './services/posts.js';
 import { createPublishingService } from './services/publishing.js';
+import { createSettingsService } from './services/settings.js';
 
 const HEARTBEAT_KEY = 'osh:worker:heartbeat';
 
@@ -45,10 +47,20 @@ export async function createContext(config, { logger = createLogger({ level: con
     queue.setWorkerHeartbeat ??= async () => {};
   }
 
-  const adapters = createAdapterRegistry({ config, logger, cipher, ...adapterDeps });
   const audit = createAuditService({ logger });
+  // One SSRF-safe fetch for everything that talks to the outside world.
+  const fetch = adapterDeps.fetch ?? createSafeFetch({ allowPrivate: config.allowPrivateNetworkTargets });
+  const settings = createSettingsService({ config, fetch, audit });
+  const media = createMediaService({ config, storage, cipher, audit, logger, settings });
+  const adapters = createAdapterRegistry({
+    config,
+    logger,
+    cipher,
+    ...adapterDeps,
+    fetch,
+    publicMedia: { isConfigured: () => media.isPublicDeliveryConfigured() },
+  });
   const auth = createAuthService({ config, logger, audit });
-  const media = createMediaService({ config, storage, cipher, audit, logger });
 
   // publishing <-> accounts reference each other; resolve the cycle lazily.
   const ref = {};
@@ -65,5 +77,5 @@ export async function createContext(config, { logger = createLogger({ level: con
     if (connect) await disconnectDb();
   }
 
-  return { config, logger, cipher, adapters, queue, redis, storage, services: { audit, auth, media, accounts, posts, publishing, dashboard, analytics }, close };
+  return { config, logger, cipher, adapters, queue, redis, storage, services: { audit, auth, settings, media, accounts, posts, publishing, dashboard, analytics }, close };
 }

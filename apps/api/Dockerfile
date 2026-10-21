@@ -13,6 +13,8 @@ COPY packages/adapters/instagram/package.json packages/adapters/instagram/
 COPY packages/adapters/facebook/package.json packages/adapters/facebook/
 COPY packages/adapters/threads/package.json packages/adapters/threads/
 COPY packages/adapters/x/package.json packages/adapters/x/
+COPY packages/adapters/linkedin/package.json packages/adapters/linkedin/
+COPY packages/adapters/meta-common/package.json packages/adapters/meta-common/
 # Production dependencies of the API workspace only (no dev tools, no web build chain).
 RUN npm ci --omit=dev --workspace=@osh/api --include-workspace-root=false --ignore-scripts
 

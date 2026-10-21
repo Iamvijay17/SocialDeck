@@ -79,53 +79,110 @@ export function createAccountService({ config, logger, cipher, adapters, audit, 
 
     async beginConnect(ownerId, platform, input = {}) {
       const adapter = adapterFor(platform);
-      if (!adapter.enabled) {
-        throw new AppError(501, 'integration_unavailable', `${adapter.label} publishing is not implemented yet. ${adapter.capabilities.notes?.[0] ?? ''}`.trim());
+      if (!adapter.capabilities.implemented) {
+        throw new AppError(501, 'integration_unavailable', `${adapter.label} publishing is not available. ${adapter.capabilities.notes?.[0] ?? ''}`.trim());
+      }
+      if (!adapter.configuration.configured) {
+        throw new AppError(
+          409,
+          'platform_not_configured',
+          `${adapter.label} is not set up yet. Add ${adapter.configuration.missing.join(' and ')} to .env (see docs/platforms.md) and restart.`,
+          { missing: adapter.configuration.missing },
+        );
       }
       try {
-        return await adapter.beginAuthorization({ ownerId: String(ownerId), redirectUri: callbackUrl(config, platform), input });
+        return await adapter.beginAuthorization({ ownerId: String(ownerId), redirectUri: callbackUrl(config, platform, adapter), input });
       } catch (err) {
         throw liftPlatformError(err);
       }
     },
 
+    /**
+     * Who is completing this OAuth flow? Taken from the single-use state the provider echoes back, so the callback
+     * also works when the provider redirects to a different origin than the dashboard (no session cookie there).
+     */
+    async ownerFromCallback(platform, query) {
+      const adapter = adapters.get(platform);
+      return adapter ? adapter.ownerFromCallback(query) : null;
+    },
+
+    /**
+     * Finish the OAuth flow. A login can yield several accounts (Meta: every shared Page and its Instagram account),
+     * so this returns a list of upserted accounts.
+     */
     async completeConnect(ownerId, platform, query, { requestId } = {}) {
       const adapter = adapterFor(platform);
       let result;
       try {
-        result = await adapter.completeAuthorization({ ownerId: String(ownerId), redirectUri: callbackUrl(config, platform), query });
+        result = await adapter.completeAuthorization({ ownerId: String(ownerId), redirectUri: callbackUrl(config, platform, adapter), query });
       } catch (err) {
         throw liftPlatformError(err);
       }
-      const { identity, credentials, scopes, expiresAt } = result;
-      const account = await SocialAccount.findOneAndUpdate(
-        { ownerId, platform, externalId: identity.externalId },
-        {
-          $set: {
-            displayName: identity.displayName,
-            handle: identity.handle,
-            avatarUrl: identity.avatarUrl,
-            instance: identity.instance,
-            credentials: cipher.encryptJson(credentials, CRED_AAD),
-            scopes: scopes ?? [],
-            tokenExpiresAt: expiresAt ?? null,
-            status: ACCOUNT_STATUS.ACTIVE,
-            statusReason: null,
-            lastVerifiedAt: new Date(),
-            connectedAt: new Date(),
+      const entries = result.accounts ?? [result];
+      const saved = [];
+      for (const entry of entries) {
+        const accountPlatform = entry.platform ?? adapter.id;
+        const { identity, credentials, scopes, expiresAt } = entry;
+        const account = await SocialAccount.findOneAndUpdate(
+          { ownerId, platform: accountPlatform, externalId: identity.externalId },
+          {
+            $set: {
+              displayName: identity.displayName,
+              handle: identity.handle,
+              avatarUrl: identity.avatarUrl,
+              instance: identity.instance,
+              credentials: cipher.encryptJson(credentials, CRED_AAD),
+              scopes: scopes ?? [],
+              tokenExpiresAt: expiresAt ?? null,
+              status: ACCOUNT_STATUS.ACTIVE,
+              statusReason: null,
+              lastVerifiedAt: new Date(),
+              connectedAt: new Date(),
+            },
           },
-        },
-        { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true },
-      );
-      await audit.record({
-        actorId: ownerId,
-        action: 'account.connect',
-        resourceType: 'account',
-        resourceId: account._id,
-        metadata: { platform, scopes: scopes ?? [] },
-        requestId,
-      });
-      return account;
+          { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true },
+        );
+        await audit.record({
+          actorId: ownerId,
+          action: 'account.connect',
+          resourceType: 'account',
+          resourceId: account._id,
+          metadata: { platform: accountPlatform, scopes: scopes ?? [] },
+          requestId,
+        });
+        saved.push(account);
+      }
+      return saved;
+    },
+
+    /**
+     * Refresh credentials that expire (Threads: 60-day tokens) before they lapse. Run daily by the worker.
+     * Accounts that cannot be refreshed are flagged so the dashboard asks for a reconnect while there is still time.
+     */
+    async refreshExpiring({ withinMs = 14 * 86_400_000 } = {}) {
+      const summary = { refreshed: 0, failed: 0, reauthorize: 0 };
+      const due = await SocialAccount.find({ status: ACCOUNT_STATUS.ACTIVE, tokenExpiresAt: { $ne: null, $lt: new Date(Date.now() + withinMs) } });
+      for (const a of due) {
+        const adapter = adapters.get(a.platform);
+        if (!adapter?.enabled || adapter.capabilities.tokenRefresh !== 'automatic') continue;
+        const loaded = await service.getWithCredentials(a._id);
+        try {
+          const fresh = await adapter.refreshCredentials({ credentials: loaded.credentials, account: service.accountContext(a) });
+          await service.updateCredentials(a._id, fresh.credentials, fresh.expiresAt);
+          await SocialAccount.updateOne({ _id: a._id }, { lastVerifiedAt: new Date() });
+          summary.refreshed++;
+        } catch (err) {
+          if (err instanceof PlatformError && err.kind === 'auth') {
+            await service.markNeedsReauthorization(a._id, err.message);
+            summary.reauthorize++;
+          } else {
+            logger.warn({ platform: a.platform, code: err.code }, 'credential refresh failed; will retry');
+            summary.failed++;
+          }
+        }
+      }
+      if (summary.refreshed || summary.failed || summary.reauthorize) logger.info(summary, 'credential refresh sweep');
+      return summary;
     },
 
     /** Check the stored credentials with the platform and update the account status accordingly. */
@@ -138,7 +195,7 @@ export function createAccountService({ config, logger, cipher, adapters, audit, 
           credentials,
           account: this.accountContext(account),
           ownerId: String(ownerId),
-          redirectUri: callbackUrl(config, account.platform),
+          redirectUri: callbackUrl(config, account.platform, adapter),
           onCredentialsUpdated: (c, exp) => this.updateCredentials(account._id, c, exp),
         });
         await SocialAccount.updateOne({ _id: account._id }, { status: ACCOUNT_STATUS.ACTIVE, statusReason: null, lastVerifiedAt: new Date(), tokenExpiresAt: expiresAt ?? null });
