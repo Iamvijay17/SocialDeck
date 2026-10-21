@@ -16,7 +16,7 @@ x-app-env: &app-env
   PORT: "4000"
   PUBLIC_URL: ${PSM_PUBLIC_URL:-http://127.0.0.1:8080}
   # Meta/Threads/LinkedIn redirect here after login (Meta allows plain http only for localhost in development mode).
-  OAUTH_REDIRECT_BASE_URL: ${PSM_OAUTH_REDIRECT_BASE_URL:-http://localhost:8080}
+  OAUTH_REDIRECT_BASE_URL: ${PSM_OAUTH_REDIRECT_BASE_URL:-https://localhost:8443}
   TRUST_PROXY: "1" # nginx in the web container
   MONGODB_URI: mongodb://root:${MONGO_PASSWORD:?run "npm run setup:env" first}@mongo:27017/private-social-manager?authSource=admin
   REDIS_URL: redis://:${REDIS_PASSWORD:?run "npm run setup:env" first}@redis:6379
@@ -97,6 +97,9 @@ services:
     restart: unless-stopped
     ports:
       - "127.0.0.1:${PSM_PORT:-8080}:8080"
+      - "127.0.0.1:${PSM_TLS_PORT:-8443}:8443" # self-signed https for OAuth redirects (Threads, LinkedIn)
+    volumes:
+      - web-certs:/certs
     depends_on:
       api: { condition: service_healthy }
     networks: [frontend, backend]
@@ -143,5 +146,6 @@ networks:
   frontend: {}
 
 volumes:
+  web-certs:
   mongo-data:
   redis-data:

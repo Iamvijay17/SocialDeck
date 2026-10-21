@@ -32,32 +32,41 @@ Everything is configured in `.env` (copy of `.env.example`). A platform shows **
 page until its variables are set, and **Disabled (paid API)** for X. Restart the API after editing `.env`
 (`docker compose up -d`, or restart `npm run dev`).
 
-## 0. One decision first: the redirect address
+## 0. The redirect address (read once)
 
-Meta, Threads and LinkedIn send your browser back to a "redirect URI" you register in their developer dashboard.
+Meta, Threads and LinkedIn send your browser back to a "redirect URI" you register in their dashboard.
 
-* Meta accepts plain `http://` only for **`http://localhost`** and only while the app is in Development mode (not
-  `127.0.0.1`). SocialDeck therefore uses `OAUTH_REDIRECT_BASE_URL`, default `http://localhost:8080` in Docker
-  (`http://localhost:5173` for `npm run dev`).
-* The callback is completed from a secret one-time `state` value, not from your login cookie, so it works even though the
-  dashboard itself is on `127.0.0.1`.
-* LinkedIn's docs say callback URLs must be HTTPS and I could not confirm an exception for `localhost`. Threads' docs show
-  only HTTPS examples. If either rejects the `http://localhost` address, use a private HTTPS address instead — for
-  example [Tailscale Serve](https://tailscale.com/kb/1242/tailscale-serve) (free, reachable only from your own devices):
-  run `tailscale serve --bg 8080` (check Tailscale's docs; the syntax varies by version), then set
-  `PSM_OAUTH_REDIRECT_BASE_URL=https://<your-machine>.<tailnet>.ts.net` (Docker) or `OAUTH_REDIRECT_BASE_URL=...` (dev)
-  and register callbacks with that base.
-* Bluesky and Mastodon keep using `PUBLIC_URL` (`http://127.0.0.1:...`) as before.
+* **Threads rejects plain http** — I tried: Meta's form refused to save `http://localhost:...` with *"HTTPS is required for all redirect
+  URLs"*. LinkedIn's docs also say callback URLs must be HTTPS.
+* **Facebook** accepts `http://localhost` automatically in Development mode (Meta's own tooltip says so), and also accepts https addresses you list.
+* So the Docker stack serves a **second, HTTPS port: `https://localhost:8443`** with a self-signed certificate that the web
+  container creates on first start (valid only for `localhost`, `127.0.0.1`, `::1`; stored in the `web-certs` volume).
+  No extra software, nothing leaves your machine. Docker Compose uses it as the default redirect base
+  (`PSM_OAUTH_REDIRECT_BASE_URL=https://localhost:8443`).
+* **Your browser will show a one-time "Your connection is not private" page** when Meta/LinkedIn send you back to
+  `https://localhost:8443/...` (the certificate is self-signed). Click **Advanced → Proceed to localhost (unsafe)**. It is safe
+  here because the address is your own computer. The page you land on immediately redirects to the dashboard.
+* Optional, to remove the warning: trust the certificate on this Windows account (only if you are comfortable with it — whoever
+  has the key in the Docker volume could then impersonate `localhost` for you):
+  ```powershell
+  docker compose cp web:/certs/localhost.crt .localhost.crt
+  certutil -user -addstore Root .localhost.crt      # Windows asks you to confirm
+  # undo later: certutil -user -delstore Root localhost
+  ```
+* Bluesky and Mastodon keep using `PUBLIC_URL` (`http://127.0.0.1:8080`) as before.
+* `npm run dev` (no Docker) has no HTTPS port. Use Docker for Threads/LinkedIn, or provide your own HTTPS address with
+  `OAUTH_REDIRECT_BASE_URL` (for example [Tailscale Serve](https://tailscale.com/kb/1242/tailscale-serve), free and private).
 
 The callback paths to register are:
 
-| Platform | Redirect URI |
+| Platform | Redirect URI (Docker default) |
 |---|---|
-| Facebook Pages **and** Instagram | `<base>/api/accounts/facebook/callback` |
-| Threads | `<base>/api/accounts/threads/callback` |
-| LinkedIn | `<base>/api/accounts/linkedin/callback` |
+| Facebook Pages **and** Instagram | `https://localhost:8443/api/accounts/facebook/callback` |
+| Threads | `https://localhost:8443/api/accounts/threads/callback` |
+| LinkedIn | `https://localhost:8443/api/accounts/linkedin/callback` |
 
-where `<base>` is `http://localhost:8080` (Docker) or `http://localhost:5173` (dev), or your HTTPS base.
+The OAuth callback is completed from a one-time secret `state` value, not from your login cookie, so it works even though the
+dashboard itself runs on `http://127.0.0.1:8080`.
 
 ---
 
@@ -98,7 +107,7 @@ cannot be posted to through the API.
 2. **My Apps → Create App.** Pick use cases that include **Facebook Login** and managing your **Page** content. (The exact
    use-case names change; what matters is that the app can request the permissions below.) Keep the app in **Development** mode.
 3. **Facebook Login → Settings → Valid OAuth Redirect URIs:** add
-   `http://localhost:8080/api/accounts/facebook/callback` (Docker) and/or `http://localhost:5173/api/accounts/facebook/callback` (dev).
+   `https://localhost:8443/api/accounts/facebook/callback` (see section 0).
 4. **App settings → Basic:** copy **App ID** and **App Secret**.
 5. Put them in `.env`:
    ```
@@ -153,8 +162,8 @@ of the app.
 1. In the same Meta app, add the **Threads** use case / product. Meta then shows a separate **Threads App ID** and **Threads
    App Secret** (the docs: "there will be 2 app IDs and app secrets").
 2. Add permissions `threads_basic` and `threads_content_publish` for the app.
-3. In the Threads settings of the app add the redirect URI `http://localhost:8080/api/accounts/threads/callback`
-   (or your HTTPS base — see section 0).
+3. In **Use cases → Access the Threads API → Customize → Settings → Redirect Callback URLs** add
+   `https://localhost:8443/api/accounts/threads/callback` and **Save** (Meta refuses anything that is not https).
 4. **App roles → Roles → Add People → Threads Tester**: add your Threads account, then accept the invitation in Threads
    (Settings → Account → Website permissions).
 5. `.env`:
@@ -189,8 +198,8 @@ LinkedIn's approval.
    the association.
 2. **Products** tab: add **Share on LinkedIn** and **Sign In with LinkedIn using OpenID Connect**. If a product says it needs
    review, wait for LinkedIn's decision — SocialDeck cannot work around that.
-3. **Auth** tab: add the redirect URL `http://localhost:8080/api/accounts/linkedin/callback` (LinkedIn's docs require
-   HTTPS; if it rejects `http://localhost`, use the HTTPS base from section 0). Copy **Client ID** and **Client Secret**.
+3. **Auth** tab: add the redirect URL `https://localhost:8443/api/accounts/linkedin/callback` (LinkedIn requires HTTPS; section 0).
+   Copy **Client ID** and **Client Secret**.
 4. `.env`:
    ```
    LINKEDIN_CLIENT_ID=...
@@ -229,7 +238,7 @@ success.
 | `THREADS_APP_ID`, `THREADS_APP_SECRET` | Threads | the **Threads** app id/secret, not the main app's |
 | `LINKEDIN_CLIENT_ID`, `LINKEDIN_CLIENT_SECRET` | LinkedIn | LinkedIn app → Auth |
 | `LINKEDIN_API_VERSION` | — | default `202610` (YYYYMM, must be an active LinkedIn API version) |
-| `OAUTH_REDIRECT_BASE_URL` / `PSM_OAUTH_REDIRECT_BASE_URL` (Docker) | Meta, Threads, LinkedIn | `http://localhost:<port>` or an HTTPS base |
+| `OAUTH_REDIRECT_BASE_URL` / `PSM_OAUTH_REDIRECT_BASE_URL` (Docker) | Meta, Threads, LinkedIn | Docker default `https://localhost:8443` (`PSM_TLS_PORT`); must be https, or `http://localhost` for Meta only |
 | `MEDIA_SIGNING_KEY` | Instagram / Threads media | generated by `npm run setup:env` |
 | `PUBLIC_MEDIA_BASE_URL` | Instagram / Threads media | optional; normally set in the dashboard |
 | `BLUESKY_OAUTH_SCOPE` | Bluesky | optional override |
